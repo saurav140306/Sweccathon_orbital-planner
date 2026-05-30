@@ -11,37 +11,49 @@ from orbital_planner.constants import MU_EARTH_KM3_S2
 from orbital_planner.transfer import hohmann_optimal_dv, hohmann_transfer_time
 
 
-def _to_3d(position: tuple[float, float]) -> np.ndarray:
-    return np.array([position[0], position[1], 0.0], dtype=float)
+from orbital_planner.vec3 import to_vec3
+
+
+def _to_3d(position: tuple[float, float, float] | tuple[float, float]) -> np.ndarray:
+    v = to_vec3(position)
+    return np.array(v, dtype=float)
 
 
 def _is_collinear(
-    r1: tuple[float, float],
-    r2: tuple[float, float],
+    r1: tuple[float, float, float] | tuple[float, float],
+    r2: tuple[float, float, float] | tuple[float, float],
     *,
     tol: float = 1e-3,
 ) -> bool:
-    a = np.array(r1, dtype=float)
-    b = np.array(r2, dtype=float)
-    cross = abs(a[0] * b[1] - a[1] * b[0])
-    return cross < tol * np.linalg.norm(a) * np.linalg.norm(b)
+    a = _to_3d(r1)
+    b = _to_3d(r2)
+    cross = np.cross(a, b)
+    return float(np.linalg.norm(cross)) < tol * float(np.linalg.norm(a)) * float(np.linalg.norm(b))
 
 
-def _circular_velocity_at(position: tuple[float, float], mu: float = MU_EARTH_KM3_S2) -> np.ndarray:
-    r = np.array(position, dtype=float)
-    r_norm = np.linalg.norm(r)
+def _circular_velocity_at(
+    position: tuple[float, float, float] | tuple[float, float],
+    mu: float = MU_EARTH_KM3_S2,
+) -> np.ndarray:
+    r = _to_3d(position)
+    r_norm = float(np.linalg.norm(r))
     if r_norm < 1.0:
-        return np.zeros(2)
-    # Prograde tangent (CCW in 2D): (-y, x) / r
-    tangent = np.array([-r[1], r[0]], dtype=float) / r_norm
+        return np.zeros(3)
+    ref = np.array([0.0, 0.0, 1.0]) if abs(r[2]) < 0.9 * r_norm else np.array([1.0, 0.0, 0.0])
+    tangent = np.cross(ref, r)
+    t_norm = float(np.linalg.norm(tangent))
+    if t_norm < 1e-12:
+        tangent = np.array([-r[1], r[0], 0.0])
+        t_norm = float(np.linalg.norm(tangent))
+    tangent = tangent / t_norm
     speed = math.sqrt(mu / r_norm)
     return tangent * speed
 
 
 def lambert_two_impulse_dv(
-    position: tuple[float, float],
-    velocity: tuple[float, float],
-    target_position: tuple[float, float],
+    position: tuple[float, float, float] | tuple[float, float],
+    velocity: tuple[float, float, float] | tuple[float, float],
+    target_position: tuple[float, float, float] | tuple[float, float],
     transfer_time_s: float,
     *,
     mu: float = MU_EARTH_KM3_S2,
@@ -52,26 +64,26 @@ def lambert_two_impulse_dv(
     """
     r1 = _to_3d(position)
     r2 = _to_3d(target_position)
-    v0 = np.array(velocity, dtype=float)
+    v0 = np.array(to_vec3(velocity), dtype=float)
 
     try:
         v1_lam, v2_lam = izzo2015(mu, r1, r2, transfer_time_s, prograde=True)
     except Exception:
         return None
 
-    if not np.all(np.isfinite(v1_lam[:2])) or not np.all(np.isfinite(v2_lam[:2])):
+    if not np.all(np.isfinite(v1_lam)) or not np.all(np.isfinite(v2_lam)):
         return None
 
-    dv1 = float(np.linalg.norm(v1_lam[:2] - v0))
+    dv1 = float(np.linalg.norm(v1_lam - v0))
     v_circ = _circular_velocity_at(target_position, mu)
-    dv2 = float(np.linalg.norm(v_circ - v2_lam[:2]))
+    dv2 = float(np.linalg.norm(v_circ - v2_lam))
     return dv1 + dv2
 
 
 def optimal_dv_lambert(
-    position: tuple[float, float],
-    velocity: tuple[float, float],
-    target_position: tuple[float, float],
+    position: tuple[float, float, float] | tuple[float, float],
+    velocity: tuple[float, float, float] | tuple[float, float],
+    target_position: tuple[float, float, float] | tuple[float, float],
     *,
     time_limit_s: float = 7200.0,
     mu: float = MU_EARTH_KM3_S2,

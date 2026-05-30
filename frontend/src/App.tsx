@@ -1,13 +1,33 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchScenarios, runAll, streamRun } from "./api";
 import { BenchmarkChart } from "./components/BenchmarkChart";
-import { OrbitalCanvas } from "./components/OrbitalCanvas";
+import { OrbitalViewport3D } from "./components/OrbitalViewport3D";
 import { ReasoningPanel } from "./components/ReasoningPanel";
 import { ScenarioList } from "./components/ScenarioList";
 import { CalculationsPanel } from "./components/CalculationsPanel";
 import { ScorePanel } from "./components/ScorePanel";
-import type { BenchmarkRow, RunResult, Scenario } from "./types";
+import type { BenchmarkRow, RunResult, Scenario, ScoreBreakdown } from "./types";
 import styles from "./App.module.css";
+
+function formatScoreOutcome(score: ScoreBreakdown): string {
+  if (score.crashed) {
+    return "\n\n--- Simulation outcome ---\nCrashed into Earth. Final score: 0.0 / 100.";
+  }
+  const parts = [
+    `Final score: ${score.score.toFixed(1)} / 100.`,
+    `3D miss ${score.miss_km.toFixed(2)} km at T+${score.closest_approach_time_s.toFixed(0)} s.`,
+  ];
+  if ((score.plane_offset_km ?? 0) > 0.01) {
+    parts.push(`Cross-track plane offset ${score.plane_offset_km!.toFixed(2)} km.`);
+  }
+  parts.push(
+    `Fuel ${score.fuel_used.toFixed(3)} km/s (${(score.fuel_ratio * 100).toFixed(0)}% of Lambert/Hohmann optimal).`,
+  );
+  if (score.fuel_penalty > 0) {
+    parts.push(`Over-budget penalty −${(score.fuel_penalty * 100).toFixed(1)} pts.`);
+  }
+  return `\n\n--- Simulation outcome ---\n${parts.join(" ")}`;
+}
 
 export default function App() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -68,6 +88,7 @@ export default function App() {
       },
       onComplete: (data) => {
         setResultsByScenario((prev) => ({ ...prev, [data.scenario_id]: data }));
+        setReasoning((prev) => prev + formatScoreOutcome(data.score));
         setRunning(false);
         setStatus("Complete");
         setPlaying(true);
@@ -139,7 +160,7 @@ export default function App() {
 
         <section className={styles.center}>
           <p className={styles.sectionLabel}>Orbital viewport</p>
-          <OrbitalCanvas
+          <OrbitalViewport3D
             scenario={selected}
             score={result?.score ?? null}
             burns={result?.plan.burns ?? []}

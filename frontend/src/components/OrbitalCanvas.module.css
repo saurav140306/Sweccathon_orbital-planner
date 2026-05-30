@@ -5,13 +5,74 @@
   height: 100%;
 }
 
-.canvas {
+.dualViewport {
+  display: flex;
+  flex: 1;
+  gap: 0.65rem;
+  min-height: 420px;
+}
+
+.main3d {
+  flex: 1.55;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.viewLabel,
+.birdEyeLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(245, 240, 230, 0.45);
+  margin: 0 0 0.35rem;
+}
+
+.birdEyePanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.birdEyeCanvas {
   flex: 1;
   width: 100%;
-  min-height: 420px;
+  min-height: 280px;
   border: 1px solid rgba(143, 184, 155, 0.25);
   border-radius: 4px;
   background: #16241c;
+}
+
+.viewportShell {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+  width: 100%;
+}
+
+.canvasMount {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(143, 184, 155, 0.25);
+  border-radius: 4px;
+  background: #16241c;
+  overflow: hidden;
+}
+
+.glError {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #e8a070;
+  text-align: center;
+  z-index: 2;
 }
 
 .controls {
@@ -48,4 +109,88 @@
   color: rgba(245, 240, 230, 0.65);
   min-width: 7rem;
   text-align: right;
+}
+
+.legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  padding: 0.45rem 0.65rem;
+  background: rgba(22, 36, 28, 0.82);
+  border: 1px solid rgba(143, 184, 155, 0.25);
+  border-radius: 3px;
+  font-size: 0.72rem;
+  color: rgba(245, 240, 230, 0.75);
+  pointer-events: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legendMeta {
+  color: rgba(245, 240, 230, 0.45);
+}
+
+.swatchChaser,
+.swatchTarget,
+.swatchEarth {
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+}
+
+.swatchChaser {
+  background: #f5f0e6;
+}
+
+.swatchTarget {
+  background: #5dcaa5;
+}
+
+.swatchEarth {
+  background: #e8c170;
+}
+
+.swatchMiss {
+  width: 14px;
+  border-top: 2px dashed #e8c170;
+  height: 0;
+}
+
+.missBadge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.65rem;
+  background: rgba(22, 36, 28, 0.9);
+  border: 1px solid rgba(232, 193, 112, 0.45);
+  border-radius: 3px;
+  font-size: 0.72rem;
+  color: rgba(245, 240, 230, 0.75);
+  pointer-events: none;
+  z-index: 3;
+  text-align: right;
+}
+
+.missBadge strong {
+  color: #e8c170;
+  font-size: 0.85rem;
+}
+
+.missBad {
+  border-color: rgba(232, 160, 112, 0.55);
+  color: #e8a070;
+}
+
+.missBad strong {
+  color: #e8a070;
 }

@@ -54,8 +54,8 @@ def hohmann_plan_for_radii(
 
 
 def optimal_dv_for_scenario(
-    position: tuple[float, float],
-    target_position: tuple[float, float],
+    position: tuple[float, float, float],
+    target_position: tuple[float, float, float],
     *,
     velocity: tuple[float, float] | None = None,
     time_limit_s: float = 7200.0,
@@ -85,9 +85,9 @@ def optimal_dv_for_scenario(
 
 
 def build_coplanar_hohmann_plan(
-    position: tuple[float, float],
-    velocity: tuple[float, float],
-    target_position: tuple[float, float],
+    position: tuple[float, float, float],
+    velocity: tuple[float, float, float],
+    target_position: tuple[float, float, float],
     *,
     mu: float = MU_EARTH_KM3_S2,
     time_limit_s: float = 7200.0,
@@ -105,6 +105,8 @@ def build_coplanar_hohmann_plan(
     v = np.array(velocity, dtype=float)
     v_hat = v / (np.linalg.norm(v) + 1e-12)
     dv1 = tuple((dv1_mag * v_hat).tolist())
+    if len(dv1) == 2:
+        dv1 = (dv1[0], dv1[1], 0.0)
     vel_after_1 = apply_burn(velocity, dv1)
 
     # Coast on transfer ellipse until apoapsis (maximum radius).
@@ -124,6 +126,8 @@ def build_coplanar_hohmann_plan(
     apo_vel = np.array(apo_point.velocity, dtype=float)
     apo_vhat = apo_vel / (np.linalg.norm(apo_vel) + 1e-12)
     dv2 = tuple((dv2_mag * apo_vhat).tolist())
+    if len(dv2) == 2:
+        dv2 = (dv2[0], dv2[1], 0.0)
 
     burns = [
         Burn(time_s=0.0, dv=dv1),
@@ -173,6 +177,8 @@ def build_rendezvous_plan(scenario: Scenario) -> MissionPlan:
         v_hat = v / (np.linalg.norm(v) + 1e-12)
         dv_mag = min(0.45, abs(dtheta) * np.linalg.norm(v) * 0.35)
         dv = tuple((dv_mag * v_hat * (1 if dtheta > 0 else -1)).tolist())
+        if len(dv) == 2:
+            dv = (dv[0], dv[1], 0.0)
         plan = MissionPlan(burns=[Burn(time_s=0.0, dv=dv)], reasoning="")
         return plan.model_copy(
             update={
@@ -208,7 +214,7 @@ def build_rendezvous_plan(scenario: Scenario) -> MissionPlan:
     dv2 = tgt_vel - vel
     burns = [
         plan.burns[0],
-        Burn(time_s=apo_t, dv=(float(dv2[0]), float(dv2[1]))),
+        Burn(time_s=apo_t, dv=(float(dv2[0]), float(dv2[1]), float(dv2[2]) if len(dv2) > 2 else 0.0)),
     ]
     return MissionPlan(
         burns=burns,

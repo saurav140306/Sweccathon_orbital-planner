@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CalculationSnapshot, RunResult, Scenario } from "../types";
+import type { CalculationSnapshot, RunResult, Scenario, ScoreBreakdown } from "../types";
 import { fetchCalculations } from "../api";
 import styles from "./CalculationsPanel.module.css";
 
@@ -26,6 +26,30 @@ function Row({ label, value, unit }: { label: string; value: string; unit?: stri
   );
 }
 
+function scoreValues(result: RunResult | null, sc: Record<string, number | string | boolean> | null | undefined) {
+  const live = result?.score;
+  return {
+    hitScore: live?.hit_score ?? Number(sc?.hit_score ?? 0),
+    missKm: live?.miss_km ?? Number(sc?.miss_km ?? 0),
+    planeOffset: live?.plane_offset_km ?? Number(sc?.plane_offset_km ?? 0),
+    fuelUsed: live?.fuel_used ?? Number(sc?.fuel_used ?? 0),
+    fuelRatio: live?.fuel_ratio ?? Number(sc?.fuel_ratio ?? 0),
+    fuelPenalty: live?.fuel_penalty ?? Number(sc?.fuel_penalty ?? 0),
+    finalScore: live?.score ?? Number(sc?.score ?? sc?.final_score ?? 0),
+    crashed: live?.crashed ?? Boolean(sc?.crashed ?? false),
+    caTime: live?.closest_approach_time_s ?? Number(sc?.closest_approach_time_s ?? 0),
+    missScale: Number(sc?.miss_scale_km ?? 0),
+  };
+}
+
+function scoreBreakdownRows(score: ScoreBreakdown, fuelBudget: number) {
+  const proximityPts = score.hit_score * 50;
+  const fuelPts = Math.min(1, score.fuel_ratio) * 30;
+  const budgetPts = Math.max(0, 1 - score.fuel_used / fuelBudget) * 20;
+  const penaltyPts = score.fuel_penalty * 100;
+  return { proximityPts, fuelPts, budgetPts, penaltyPts };
+}
+
 export function CalculationsPanel({ scenario, scrubT, result }: Props) {
   const [calc, setCalc] = useState<CalculationSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +61,7 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
     }
     let cancelled = false;
     setLoading(true);
-    fetchCalculations(scenario.id, scrubT)
+    fetchCalculations(scenario.id, scrubT, result?.score ?? null)
       .then((snap) => {
         if (!cancelled) setCalc(snap);
       })
@@ -50,7 +74,7 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [scenario, scrubT, result?.score.score]);
+  }, [scenario, scrubT, result?.score]);
 
   if (!scenario) {
     return (
@@ -66,6 +90,11 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
   const g = calc?.gravity ?? {};
   const sc = calc?.score;
   const isMoon = String(t.kind ?? "") === "moon";
+  const hasRun = result?.score != null;
+  const sv = scoreValues(result, sc);
+  const breakdown = result?.score
+    ? scoreBreakdownRows(result.score, scenario.fuel_budget_dv)
+    : null;
 
   return (
     <div className={styles.panel}>
@@ -87,6 +116,8 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
         <Row label="Orbit" value={String(t.orbit_type ?? "elliptical")} />
         <Row label="Semi-major a" value={fmt(Number(t.semi_major_axis_km ?? 0), 0)} unit="km" />
         <Row label="Eccentricity e" value={fmt(Number(t.eccentricity ?? 0), 3)} />
+        <Row label="Inclination i" value={fmt(Number(t.inclination_deg ?? 0), 1)} unit="°" />
+        <Row label="RAAN Ω" value={fmt(Number(t.raan_deg ?? 0), 1)} unit="°" />
         <Row label="Peri / Apo" value={`${fmt(Number(t.periapsis_km ?? 0), 0)} / ${fmt(Number(t.apoapsis_km ?? 0), 0)}`} unit="km" />
         <Row label="Period" value={fmt(Number(t.period_min ?? 0), 1)} unit="min" />
         <Row label="Radius r" value={fmt(Number(t.radius_km ?? 0), 1)} unit="km" />
@@ -102,9 +133,14 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
       </section>
 
       <section className={styles.block}>
-        <h3 className={styles.blockTitle}>Chaser (coast ellipse)</h3>
+        <h3 className={styles.blockTitle}>
+          Chaser {hasRun ? "(simulated trajectory)" : "(initial coast ellipse)"}
+        </h3>
         <Row label="Semi-major a" value={fmt(Number(c.semi_major_axis_km ?? 0), 0)} unit="km" />
         <Row label="Eccentricity e" value={fmt(Number(c.eccentricity ?? 0), 3)} />
+        {Number(c.inclination_deg ?? 0) > 0.05 && (
+          <Row label="Inclination i" value={fmt(Number(c.inclination_deg ?? 0), 1)} unit="°" />
+        )}
         <Row label="Radius r" value={fmt(Number(c.radius_km ?? 0), 1)} unit="km" />
         <Row label="Speed |v|" value={fmt(Number(c.speed_km_s ?? 0), 3)} unit="km/s" />
         <Row label="ν" value={fmt(Number(c.true_anomaly_deg ?? 0), 1)} unit="°" />
@@ -135,32 +171,55 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
         <section className={styles.blockHighlight}>
           <h3 className={styles.blockTitle}>Score</h3>
           <div className={styles.formula}>
-            {String(sc?.hit_formula ?? "proximity = 1 / (1 + miss / miss_scale)")}
+            {String(
+              sc?.miss_scale_formula ??
+                "miss_scale = tolerance × 20 × (1 + 0.15·sin i)",
+            )}
           </div>
           <div className={styles.formula}>
-            {String(sc?.score_formula ?? "100×(0.5·proximity + 0.3·fuel + 0.2·budget) − penalty")}
+            {String(
+              sc?.hit_formula ??
+                "proximity = 1 / (1 + miss/miss_scale + 0.15·plane/miss_scale)",
+            )}
           </div>
+          <div className={styles.formula}>
+            {String(
+              sc?.score_formula ??
+                "100×(0.5·proximity + 0.3·fuel + 0.2·budget) − 100×penalty",
+            )}
+          </div>
+          {sv.missScale > 0 && (
+            <Row label="Miss scale" value={fmt(sv.missScale, 1)} unit="km" />
+          )}
+          <Row label="Proximity" value={`${fmt(sv.hitScore * 100, 1)}%`} />
           <Row
-            label="Proximity"
-            value={`${fmt((result?.score?.hit_score ?? Number(sc?.hit_score ?? 0)) * 100, 1)}%`}
+            label="Miss (3D)"
+            value={sv.crashed ? "—" : fmt(sv.missKm, 2)}
+            unit={sv.crashed ? undefined : "km"}
           />
-          <Row
-            label="Miss"
-            value={fmt(result?.score?.miss_km ?? Number(sc?.miss_km ?? 0), 2)}
-            unit="km"
-          />
-          <Row
-            label="Fuel used"
-            value={fmt(result?.score?.fuel_used ?? Number(sc?.fuel_used ?? 0), 3)}
-            unit="km/s"
-          />
-          <Row
-            label="vs optimal"
-            value={`${fmt((result?.score?.fuel_ratio ?? Number(sc?.fuel_ratio ?? 0)) * 100, 0)}%`}
-          />
-          <p className={styles.bigScore}>
-            {fmt(result?.score?.score ?? Number(sc?.final_score ?? 0), 1)}
-          </p>
+          {!sv.crashed && sv.planeOffset > 0.001 && (
+            <Row label="Plane offset" value={fmt(sv.planeOffset, 2)} unit="km" />
+          )}
+          {!sv.crashed && sv.caTime > 0 && (
+            <Row label="Closest approach" value={fmt(sv.caTime, 0)} unit="s" />
+          )}
+          <Row label="Fuel used" value={fmt(sv.fuelUsed, 3)} unit="km/s" />
+          <Row label="vs optimal" value={`${fmt(sv.fuelRatio * 100, 0)}%`} />
+          {sv.fuelPenalty > 0 && (
+            <Row
+              label="Over-budget penalty"
+              value={`−${fmt(sv.fuelPenalty * 100, 1)}`}
+              unit="pts"
+            />
+          )}
+          {breakdown && (
+            <>
+              <Row label="50% proximity" value={fmt(breakdown.proximityPts, 1)} unit="pts" />
+              <Row label="30% fuel eff." value={fmt(breakdown.fuelPts, 1)} unit="pts" />
+              <Row label="20% budget" value={fmt(breakdown.budgetPts, 1)} unit="pts" />
+            </>
+          )}
+          <p className={styles.bigScore}>{fmt(sv.finalScore, 1)}</p>
         </section>
       )}
     </div>

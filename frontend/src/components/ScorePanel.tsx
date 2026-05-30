@@ -39,6 +39,10 @@ export function ScorePanel({ score, scenarioName, fuelBudget = 2 }: Props) {
   const display = useCountUp(score?.score ?? 0, score != null);
   const fuelPct = score ? Math.min(100, (score.fuel_used / fuelBudget) * 100) : 0;
   const effPct = score ? Math.min(100, score.fuel_ratio * 100) : 0;
+  const proximityPts = score ? score.hit_score * 50 : 0;
+  const fuelPts = score ? Math.min(1, score.fuel_ratio) * 30 : 0;
+  const budgetPts = score ? Math.max(0, 1 - score.fuel_used / fuelBudget) * 20 : 0;
+  const penaltyPts = score ? score.fuel_penalty * 100 : 0;
 
   if (!score) {
     return (
@@ -58,21 +62,47 @@ export function ScorePanel({ score, scenarioName, fuelBudget = 2 }: Props) {
       <table className={styles.table}>
         <tbody>
           <tr>
-            <td>Proximity</td>
-            <td>{(score.hit_score * 100).toFixed(1)}%</td>
+            <td>Proximity (50%)</td>
+            <td>{(score.hit_score * 100).toFixed(1)}% · {proximityPts.toFixed(1)} pts</td>
           </tr>
           <tr>
-            <td>Miss distance</td>
+            <td>Miss distance (3D)</td>
             <td>{score.crashed ? "—" : `${score.miss_km.toFixed(2)} km`}</td>
           </tr>
+          {!score.crashed && (score.plane_offset_km ?? 0) > 0.001 && (
+            <tr>
+              <td>Plane offset</td>
+              <td>{score.plane_offset_km!.toFixed(2)} km</td>
+            </tr>
+          )}
+          {!score.crashed && score.closest_approach_time_s > 0 && (
+            <tr>
+              <td>Closest approach</td>
+              <td>T+{score.closest_approach_time_s.toFixed(0)} s</td>
+            </tr>
+          )}
           <tr>
             <td>Fuel used</td>
             <td>{score.fuel_used.toFixed(3)} km/s</td>
           </tr>
           <tr>
-            <td>Optimal (Lambert)</td>
+            <td>Fuel efficiency (30%)</td>
+            <td>{effPct.toFixed(0)}% · {fuelPts.toFixed(1)} pts</td>
+          </tr>
+          <tr>
+            <td>Budget headroom (20%)</td>
+            <td>{budgetPts.toFixed(1)} pts</td>
+          </tr>
+          <tr>
+            <td>Optimal Δv (Lambert/Hohmann)</td>
             <td>{score.optimal_dv.toFixed(3)} km/s</td>
           </tr>
+          {penaltyPts > 0 && (
+            <tr>
+              <td>Over-budget penalty</td>
+              <td>−{penaltyPts.toFixed(1)} pts</td>
+            </tr>
+          )}
           <tr>
             <td>Crashed</td>
             <td>{score.crashed ? "Yes" : "No"}</td>

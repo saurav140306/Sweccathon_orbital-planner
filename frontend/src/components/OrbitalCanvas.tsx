@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Burn, Scenario, ScoreBreakdown } from "../types";
+import type { Vec3 } from "../kepler3d";
 import {
   bodySpinAngle,
   chaserCoastPath,
@@ -184,7 +185,7 @@ export function OrbitalCanvas({
       }
 
       const drawOrbitPath = (
-        path: [number, number][],
+        path: Vec3[],
         color: string,
         dash: number[] = [],
       ) => {

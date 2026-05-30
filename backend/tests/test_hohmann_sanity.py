@@ -54,16 +54,18 @@ def test_earth_spin_advances():
 
 
 def test_intercept01_elliptical_target_trajectory():
-    """Intercept scenario uses elliptical chaser + moon; verify Kepler target sampling."""
-    from orbital_planner.schemas import Burn, MissionPlan
+    """Intercept scenario: inclined elliptical moon; verify 3D Kepler target sampling."""
+    from orbital_planner.orbital_motion import sample_target_trajectory
 
-    plan = MissionPlan(burns=[], reasoning="Coast on published elliptical elements.")
-    result = score_mission(INTERCEPT_01, plan)
-    assert not result.crashed
-    assert len(result.target_trajectory) > 10
-    assert result.target_trajectory[0].position != result.target_trajectory[-1].position
     tg = enrich_target(INTERCEPT_01.target)
     assert (tg.orbit_elements.eccentricity if tg.orbit_elements else 0) > 0.05
+    assert tg.inclination_rad > math.radians(10.0)
+    traj = sample_target_trajectory(tg, INTERCEPT_01.time_limit_s)
+    assert len(traj) > 10
+    assert traj[0].position != traj[-1].position
+    # Inclined orbit has non-zero z motion
+    z_span = max(p.position[2] for p in traj) - min(p.position[2] for p in traj)
+    assert z_span > 100.0
 
 
 def test_moving_target_miss_differs_from_static():

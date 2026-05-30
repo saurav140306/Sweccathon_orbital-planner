@@ -1,4 +1,4 @@
-import type { BenchmarkRow, CalculationSnapshot, RunResult, Scenario } from "./types";
+import type { BenchmarkRow, CalculationSnapshot, RunResult, Scenario, ScoreBreakdown } from "./types";
 
 /** Direct backend URL — used when Vite proxy races startup or fails. */
 const DIRECT_BACKEND = "http://127.0.0.1:8000";
@@ -67,7 +67,16 @@ export async function fetchScenarios(): Promise<Scenario[]> {
 export async function fetchCalculations(
   scenarioId: string,
   t_s: number,
+  score?: ScoreBreakdown | null,
 ): Promise<CalculationSnapshot> {
+  if (score) {
+    const res = await apiFetch("/api/calculations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenario_id: scenarioId, t_s, score }),
+    });
+    return res.json();
+  }
   const res = await apiFetch(
     `/api/calculations?scenario_id=${encodeURIComponent(scenarioId)}&t_s=${t_s}`,
   );

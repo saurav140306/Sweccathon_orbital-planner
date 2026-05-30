@@ -15,10 +15,11 @@ from pydantic import BaseModel
 
 from orbital_planner.agent import plan_mission_with_retry
 from orbital_planner.calculations import build_calculation_snapshot
+from orbital_planner.schemas import ScoreBreakdown
 from orbital_planner.reward import score_mission
 from orbital_planner.scenarios import ALL_SCENARIOS, SCENARIOS, TIER_ORDER
-from orbital_planner.kepler2d import elements_from_state, sample_orbit_positions
-from orbital_planner.orbital_motion import enrich_target, target_orbit_path
+from orbital_planner.kepler3d import sample_orbit_positions
+from orbital_planner.orbital_motion import enrich_target, spacecraft_elements, target_orbit_path
 from orbital_planner.transfer import build_coplanar_hohmann_plan
 
 load_dotenv()
@@ -43,6 +44,12 @@ class RunRequest(BaseModel):
     use_mock: bool = False
 
 
+class CalculationsRequest(BaseModel):
+    scenario_id: str
+    t_s: float = 0.0
+    score: dict[str, Any] | None = None
+
+
 class RunResponse(BaseModel):
     scenario_id: str
     plan: dict[str, Any]
@@ -60,13 +67,28 @@ def get_calculations(
     scenario_id: str,
     t_s: float = Query(0.0, ge=0.0),
 ) -> dict[str, Any]:
+    return _calculations_payload(scenario_id, t_s, score=None)
+
+
+@app.post("/api/calculations")
+def post_calculations(body: CalculationsRequest) -> dict[str, Any]:
+    score = ScoreBreakdown.model_validate(body.score) if body.score else None
+    return _calculations_payload(body.scenario_id, body.t_s, score=score)
+
+
+def _calculations_payload(
+    scenario_id: str,
+    t_s: float,
+    *,
+    score: ScoreBreakdown | None,
+) -> dict[str, Any]:
     scenario = SCENARIOS.get(scenario_id)
     if not scenario:
         raise HTTPException(404, f"Unknown scenario {scenario_id!r}")
-    snap = build_calculation_snapshot(scenario, t_s)
-    path = [{"x": p[0], "y": p[1]} for p in target_orbit_path(enrich_target(scenario.target))]
-    chaser_el = elements_from_state(scenario.spacecraft.position, scenario.spacecraft.velocity)
-    chaser_path = [{"x": p[0], "y": p[1]} for p in sample_orbit_positions(chaser_el, n_points=90)]
+    snap = build_calculation_snapshot(scenario, t_s, score=score)
+    path = [{"x": p[0], "y": p[1], "z": p[2]} for p in target_orbit_path(enrich_target(scenario.target))]
+    chaser_el = spacecraft_elements(scenario.spacecraft.position, scenario.spacecraft.velocity)
+    chaser_path = [{"x": p[0], "y": p[1], "z": p[2]} for p in sample_orbit_positions(chaser_el, n_points=90)]
     payload = snap.model_dump()
     payload["target_orbit_path"] = path
     payload["chaser_orbit_path"] = chaser_path
@@ -188,6 +210,7 @@ def _score_payload(breakdown) -> dict[str, Any]:
         "score": breakdown.score,
         "crashed": breakdown.crashed,
         "closest_approach_time_s": breakdown.closest_approach_time_s,
+        "plane_offset_km": breakdown.plane_offset_km,
         "trajectory": [p.model_dump() for p in breakdown.trajectory],
         "target_trajectory": [p.model_dump() for p in breakdown.target_trajectory],
         "earth_spin_rad_s": breakdown.earth_spin_rad_s,

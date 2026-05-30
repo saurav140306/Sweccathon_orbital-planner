@@ -20,7 +20,7 @@ from orbital_planner.scenarios import INTERCEPT_01, RAISE_EASY
 
 def test_moon_acceleration_pulls_toward_body():
     tg = enrich_target(INTERCEPT_01.target)
-    chaser = np.array([9000.0, 0.0])
+    chaser = np.array([9000.0, 0.0, 0.0])
     moon_pos = np.array(target_position_at(tg, 0.0))
     rel = moon_pos - chaser
     expected_mag = MU_MOON_KM3_S2 / float(np.linalg.norm(rel)) ** 2

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from orbital_planner.vec3 import to_vec3
 
 
 class OrbitElementsOut(BaseModel):
@@ -20,27 +23,27 @@ class OrbitElementsOut(BaseModel):
     apoapsis_km: float
     specific_angular_momentum: float
     specific_energy_km2_s2: float
+    inclination_rad: float = 0.0
+    raan_rad: float = 0.0
 
 
 class SpacecraftState(BaseModel):
-    position: tuple[float, float] = Field(description="km, inertial 2D")
-    velocity: tuple[float, float] = Field(description="km/s")
+    position: tuple[float, float, float] = Field(description="km, inertial ECI")
+    velocity: tuple[float, float, float] = Field(description="km/s")
 
     @field_validator("position", "velocity", mode="before")
     @classmethod
-    def coerce_pair(cls, value: object) -> tuple[float, float]:
-        if isinstance(value, (list, tuple)) and len(value) == 2:
-            return (float(value[0]), float(value[1]))
-        raise ValueError("Expected a length-2 vector")
+    def coerce_vec3(cls, value: object) -> tuple[float, float, float]:
+        return to_vec3(value)
 
 
 class TargetSpec(BaseModel):
-    """Target on a Keplerian orbit (circle if e≈0, else ellipse)."""
+    """Target on a Keplerian orbit (2D equatorial or 3D inclined)."""
 
-    position: tuple[float, float] = Field(description="Inertial position at t=0 (km)")
+    position: tuple[float, float, float] = Field(description="Inertial position at t=0 (km)")
     tolerance_km: float = Field(gt=0)
     kind: Literal["satellite", "moon"] = "satellite"
-    velocity: tuple[float, float] | None = Field(
+    velocity: tuple[float, float, float] | None = Field(
         default=None,
         description="Optional; with position defines osculating ellipse at t=0",
     )
@@ -48,6 +51,8 @@ class TargetSpec(BaseModel):
     semi_major_axis_km: float | None = None
     eccentricity: float = Field(default=0.0, ge=0.0, lt=1.0)
     argument_of_periapsis_rad: float = 0.0
+    inclination_rad: float = Field(default=0.0, ge=0.0, le=math.pi)
+    raan_rad: float = 0.0
     true_anomaly_at_t0_rad: float | None = None
     orbit_radius_km: float | None = None
     initial_angle_rad: float | None = None
@@ -66,12 +71,10 @@ class TargetSpec(BaseModel):
 
     @field_validator("position", "velocity", mode="before")
     @classmethod
-    def coerce_position(cls, value: object) -> tuple[float, float] | None:
+    def coerce_position(cls, value: object) -> tuple[float, float, float] | None:
         if value is None:
             return None
-        if isinstance(value, (list, tuple)) and len(value) == 2:
-            return (float(value[0]), float(value[1]))
-        raise ValueError("Expected a length-2 vector")
+        return to_vec3(value)
 
 
 class Scenario(BaseModel):
@@ -86,14 +89,12 @@ class Scenario(BaseModel):
 
 class Burn(BaseModel):
     time_s: float = Field(ge=0)
-    dv: tuple[float, float]
+    dv: tuple[float, float, float]
 
     @field_validator("dv", mode="before")
     @classmethod
-    def coerce_dv(cls, value: object) -> tuple[float, float]:
-        if isinstance(value, (list, tuple)) and len(value) == 2:
-            return (float(value[0]), float(value[1]))
-        raise ValueError("Expected a length-2 delta-v vector")
+    def coerce_dv(cls, value: object) -> tuple[float, float, float]:
+        return to_vec3(value)
 
 
 class MissionPlan(BaseModel):
@@ -103,8 +104,13 @@ class MissionPlan(BaseModel):
 
 class TrajectoryPoint(BaseModel):
     t_s: float
-    position: tuple[float, float]
-    velocity: tuple[float, float]
+    position: tuple[float, float, float]
+    velocity: tuple[float, float, float]
+
+    @field_validator("position", "velocity", mode="before")
+    @classmethod
+    def coerce_traj_vec(cls, value: object) -> tuple[float, float, float]:
+        return to_vec3(value)
 
 
 class ScoreBreakdown(BaseModel):
@@ -117,6 +123,7 @@ class ScoreBreakdown(BaseModel):
     score: float
     crashed: bool
     closest_approach_time_s: float
+    plane_offset_km: float = 0.0
     trajectory: list[TrajectoryPoint]
     target_trajectory: list[TrajectoryPoint] = Field(default_factory=list)
     earth_spin_rad_s: float = Field(default=7.292e-5)

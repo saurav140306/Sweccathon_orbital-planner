@@ -2,6 +2,8 @@ export type Tier = "easy" | "medium" | "hard" | "expert";
 export type TargetKind = "satellite" | "moon";
 export type OrbitType = "circular" | "elliptical";
 
+export type Vec3 = [number, number, number];
+
 export interface OrbitElementsOut {
   semi_major_axis_km: number;
   eccentricity: number;
@@ -13,17 +15,21 @@ export interface OrbitElementsOut {
   apoapsis_km: number;
   specific_angular_momentum: number;
   specific_energy_km2_s2: number;
+  inclination_rad?: number;
+  raan_rad?: number;
 }
 
 export interface TargetSpec {
-  position: [number, number];
-  velocity?: [number, number] | null;
+  position: Vec3;
+  velocity?: Vec3 | null;
   tolerance_km: number;
   kind?: TargetKind;
   orbit_type?: OrbitType;
   semi_major_axis_km?: number;
   eccentricity?: number;
   argument_of_periapsis_rad?: number;
+  inclination_rad?: number;
+  raan_rad?: number;
   true_anomaly_at_t0_rad?: number;
   orbit_radius_km?: number;
   initial_angle_rad?: number;
@@ -39,7 +45,7 @@ export interface Scenario {
   id: string;
   name: string;
   tier: Tier;
-  spacecraft: { position: [number, number]; velocity: [number, number] };
+  spacecraft: { position: Vec3; velocity: Vec3 };
   target: TargetSpec;
   fuel_budget_dv: number;
   time_limit_s: number;
@@ -47,7 +53,7 @@ export interface Scenario {
 
 export interface Burn {
   time_s: number;
-  dv: [number, number];
+  dv: Vec3;
 }
 
 export interface MissionPlan {
@@ -57,8 +63,8 @@ export interface MissionPlan {
 
 export interface TrajectoryPoint {
   t_s: number;
-  position: [number, number];
-  velocity: [number, number];
+  position: Vec3;
+  velocity: Vec3;
 }
 
 export interface ScoreBreakdown {
@@ -71,6 +77,7 @@ export interface ScoreBreakdown {
   score: number;
   crashed: boolean;
   closest_approach_time_s: number;
+  plane_offset_km?: number;
   trajectory: TrajectoryPoint[];
   target_trajectory?: TrajectoryPoint[];
   earth_spin_rad_s?: number;
@@ -92,6 +99,12 @@ export interface BenchmarkRow {
   fuel_used: number;
 }
 
+export interface OrbitPathPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface CalculationSnapshot {
   t_s: number;
   mu_km3_s2: number;
@@ -101,6 +114,6 @@ export interface CalculationSnapshot {
   chaser: Record<string, number | string | number[]>;
   score?: Record<string, number | string | boolean> | null;
   gravity?: Record<string, number | string> | null;
-  target_orbit_path?: { x: number; y: number }[];
-  chaser_orbit_path?: { x: number; y: number }[];
+  target_orbit_path?: OrbitPathPoint[];
+  chaser_orbit_path?: OrbitPathPoint[];
 }

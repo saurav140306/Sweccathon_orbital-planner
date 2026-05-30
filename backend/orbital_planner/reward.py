@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from orbital_planner.constants import EARTH_SPIN_RAD_S
-from orbital_planner.orbital_motion import sample_target_trajectory, target_position_at
-from orbital_planner.physics import min_distance_to_moving_target, simulate_trajectory
+from orbital_planner.orbital_motion import enrich_target, sample_target_trajectory, target_position_at
+from orbital_planner.physics import min_distance_to_moving_target, plane_offset_at_closest, simulate_trajectory
 from orbital_planner.schemas import MissionPlan, Scenario, ScoreBreakdown
 from orbital_planner.transfer import optimal_dv_for_scenario
 
@@ -21,18 +23,13 @@ def fuel_used(burns: list) -> float:
 
 def score_mission(scenario: Scenario, plan: MissionPlan) -> ScoreBreakdown:
     """
-    Simulate plan, compare to optimal baseline, return full breakdown.
+    Simulate plan in 3D, compare to optimal baseline, return full breakdown.
 
-    Score formula (spec):
-        proximity   = 1 / (1 + miss_km / miss_scale)   # continuous; differs per scenario
-        fuel_score  = min(1, optimal_dv / fuel_used)
-        budget_score = max(0, 1 - fuel_used / fuel_budget)
-        fuel_pen    = max(0, fuel_used - fuel_budget) * 0.5
-        score       = round(100 * (0.50*proximity + 0.30*fuel_score + 0.20*budget_score) - 100*fuel_pen, 1)
+    Proximity uses 3D miss distance plus a cross-track plane term for inclined targets.
     """
     pos = scenario.spacecraft.position
     vel = scenario.spacecraft.velocity
-    target = scenario.target
+    target = enrich_target(scenario.target)
     target_pos = target_position_at(target, 0.0)
 
     trajectory, crashed, _, _ = simulate_trajectory(
@@ -40,7 +37,7 @@ def score_mission(scenario: Scenario, plan: MissionPlan) -> ScoreBreakdown:
         velocity=vel,
         burns=plan.burns,
         time_limit_s=scenario.time_limit_s,
-        target=scenario.target,
+        target=target,
     )
 
     if crashed:
@@ -60,12 +57,14 @@ def score_mission(scenario: Scenario, plan: MissionPlan) -> ScoreBreakdown:
             score=0.0,
             crashed=True,
             closest_approach_time_s=0.0,
+            plane_offset_km=0.0,
             trajectory=trajectory,
             target_trajectory=sample_target_trajectory(target, scenario.time_limit_s),
             earth_spin_rad_s=EARTH_SPIN_RAD_S,
         )
 
     miss_km, closest_t = min_distance_to_moving_target(trajectory, target)
+    plane_offset = plane_offset_at_closest(trajectory, target, closest_t)
     used = fuel_used(plan.burns)
     optimal = optimal_dv_for_scenario(
         pos,
@@ -76,9 +75,11 @@ def score_mission(scenario: Scenario, plan: MissionPlan) -> ScoreBreakdown:
     )
     target_traj = sample_target_trajectory(target, scenario.time_limit_s)
 
-    miss_scale = scenario.target.tolerance_km * 20.0
+    incl = target.inclination_rad
+    miss_scale = target.tolerance_km * 20.0 * (1.0 + 0.15 * math.sin(incl))
     fuel_ratio = optimal / max(used, 1e-6)
-    proximity = 1.0 / (1.0 + miss_km / max(miss_scale, 1.0))
+    plane_term = plane_offset / max(miss_scale, 1.0)
+    proximity = 1.0 / (1.0 + miss_km / max(miss_scale, 1.0) + 0.15 * plane_term)
     fuel_score = min(1.0, fuel_ratio)
     budget_score = max(0.0, 1.0 - used / scenario.fuel_budget_dv)
     fuel_pen = max(0.0, used - scenario.fuel_budget_dv) * 0.5
@@ -99,6 +100,7 @@ def score_mission(scenario: Scenario, plan: MissionPlan) -> ScoreBreakdown:
         score=final_score,
         crashed=False,
         closest_approach_time_s=round(closest_t, 1),
+        plane_offset_km=round(plane_offset, 3),
         trajectory=trajectory,
         target_trajectory=target_traj,
         earth_spin_rad_s=EARTH_SPIN_RAD_S,
