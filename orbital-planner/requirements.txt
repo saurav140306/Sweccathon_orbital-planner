@@ -1,0 +1,4 @@
+# Env runtime dependencies (adapter uses swecc-mesocosm / bench_common from pip)
+numpy>=1.26
+pydantic>=2.9
+lamberthub>=1.0

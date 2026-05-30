@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orbital Planner — Mesocosm Showcase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f1a14;
+      --panel: #16241c;
+      --mint: #5dcaa5;
+      --gold: #e8c170;
+      --text: #f5f0e6;
+      --muted: rgba(245,240,230,.55);
+      --line: rgba(143,184,155,.2);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: .75rem;
+    }
+    h1 {
+      font-family: Cormorant, serif;
+      font-size: 2rem;
+      margin: 0;
+    }
+    .sub { color: var(--muted); font-size: .85rem; margin: .2rem 0 0; }
+    main {
+      display: grid;
+      grid-template-columns: 220px 1fr 300px;
+      gap: 1rem;
+      padding: 1rem 1.5rem 1.5rem;
+      min-height: calc(100vh - 5rem);
+    }
+    @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: .85rem;
+    }
+    .label {
+      font-size: .62rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--mint);
+      margin: 0 0 .5rem;
+    }
+    .ep-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: .45rem .55rem;
+      margin-bottom: .35rem;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: .78rem;
+    }
+    .ep-btn.active { border-color: var(--mint); background: rgba(93,202,165,.08); }
+    canvas {
+      width: 100%;
+      height: 420px;
+      display: block;
+      background: #0c1510;
+      border-radius: 2px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      align-items: center;
+      margin-top: .65rem;
+    }
+    button.ctrl {
+      background: rgba(93,202,165,.12);
+      border: 1px solid var(--mint);
+      color: var(--text);
+      padding: .35rem .65rem;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: .78rem;
+    }
+    input[type=range] { flex: 1; min-width: 120px; accent-color: var(--mint); }
+    .hud { font-size: .82rem; line-height: 1.5; }
+    .hud strong { color: var(--mint); }
+    pre {
+      background: rgba(0,0,0,.25);
+      padding: .55rem;
+      border-radius: 2px;
+      font-size: .72rem;
+      overflow: auto;
+      max-height: 140px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .reasoning { color: var(--gold); font-style: italic; }
+    .score-big {
+      font-family: Cormorant, serif;
+      font-size: 2.4rem;
+      color: var(--mint);
+      margin: .25rem 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Orbital Planner</h1>
+      <p class="sub">Mesocosm replay — drive the agent's mission plans turn by turn</p>
+    </div>
+    <div class="hud" id="runHud">Loading replay…</div>
+  </header>
+  <main>
+    <aside class="panel">
+      <p class="label">Episodes</p>
+      <div id="episodeRail"></div>
+    </aside>
+    <section class="panel">
+      <p class="label">Orbital viewport</p>
+      <canvas id="canvas" width="800" height="420"></canvas>
+      <div class="controls">
+        <button class="ctrl" id="btnPlay">Play</button>
+        <button class="ctrl" id="btnPrev">◀</button>
+        <button class="ctrl" id="btnNext">▶</button>
+        <input type="range" id="scrub" min="0" max="0" value="0" />
+        <select id="speed" class="ctrl">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+        <span id="turnLabel" class="hud">T 0/0</span>
+      </div>
+    </section>
+    <aside class="panel">
+      <p class="label">Turn HUD</p>
+      <div class="score-big" id="scoreVal">—</div>
+      <div class="hud" id="metrics"></div>
+      <p class="label" style="margin-top:.75rem">Reasoning</p>
+      <p class="reasoning" id="reasoning">—</p>
+      <p class="label" style="margin-top:.75rem">Action</p>
+      <pre id="action"></pre>
+    </aside>
+  </main>
+  <script src="data/replay.js"></script>
+  <script>
+    const EARTH_R = 6371;
+    const MU = 398600;
+    let DATA = window.REPLAY;
+    let epId = null;
+    let turnIdx = 0;
+    let playing = false;
+    let playTimer = null;
+
+    async function loadReplay() {
+      if (DATA) return DATA;
+      try {
+        const res = await fetch("data/replay.json");
+        DATA = await res.json();
+      } catch {
+        DATA = { run: {}, episodes: [], replay: {} };
+      }
+      return DATA;
+    }
+
+    function parseInfo(info) {
+      const out = {};
+      for (const [k, v] of Object.entries(info || {})) {
+        try { out[k] = JSON.parse(v); } catch { out[k] = v; }
+      }
+      return out;
+    }
+
+    function turns() { return (DATA.replay && DATA.replay[epId]) || []; }
+
+    function setEpisode(id) {
+      epId = id;
+      turnIdx = 0;
+      playing = false;
+      clearInterval(playTimer);
+      document.querySelectorAll(".ep-btn").forEach(b => b.classList.toggle("active", b.dataset.id === id));
+      const scrub = document.getElementById("scrub");
+      scrub.max = Math.max(0, turns().length - 1);
+      scrub.value = 0;
+      renderTurn();
+    }
+
+    function renderTurn() {
+      const tlist = turns();
+      const t = tlist[turnIdx];
+      if (!t) return;
+      const info = parseInfo(t.info);
+      document.getElementById("turnLabel").textContent = `Turn ${turnIdx + 1}/${tlist.length}`;
+      document.getElementById("scrub").value = turnIdx;
+      document.getElementById("scoreVal").textContent = info.score ?? "—";
+      document.getElementById("metrics").innerHTML = `
+        <div><strong>Reward</strong> ${Number(t.reward).toFixed(3)}</div>
+        <div><strong>Miss</strong> ${info.miss_km ?? "—"} km</div>
+        <div><strong>Fuel</strong> ${info.fuel_used ?? "—"} km/s</div>
+        <div><strong>Scenario</strong> ${info.scenario_name ?? info.scenario_id ?? "—"}</div>
+      `;
+      document.getElementById("reasoning").textContent =
+        t.reasoning || info.agent_reasoning || "—";
+      document.getElementById("action").textContent = typeof t.action === "string" ? t.action : JSON.stringify(t.action, null, 2);
+      drawOrbit(info, t.observation);
+    }
+
+    function drawOrbit(info, obs) {
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = "#0c1510";
+      ctx.fillRect(0, 0, w, h);
+      const chaser = JSON.parse(info.chaser_traj_json || "[]");
+      const target = JSON.parse(info.target_traj_json || "[]");
+      const all = [...chaser, ...target];
+      const maxR = Math.max(12000, ...all.map(p => Math.hypot(p.x, p.y)), EARTH_R * 2);
+      const cx = w / 2, cy = h / 2, scale = (Math.min(w, h) * 0.42) / maxR;
+      const toS = (x, y) => [cx + x * scale, cy - y * scale];
+
+      ctx.strokeStyle = "rgba(143,184,155,.15)";
+      for (const r of [8000, 10000, 12000]) {
+        ctx.beginPath(); ctx.arc(cx, cy, r * scale, 0, Math.PI * 2); ctx.stroke();
+      }
+      const eg = ctx.createRadialGradient(cx, cy, 10, cx, cy, EARTH_R * scale);
+      eg.addColorStop(0, "#2a4538"); eg.addColorStop(1, "#8FB89B");
+      ctx.fillStyle = eg;
+      ctx.beginPath(); ctx.arc(cx, cy, EARTH_R * scale, 0, Math.PI * 2); ctx.fill();
+
+      function path(pts, color) {
+        if (!pts.length) return;
+        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+        const [x0, y0] = toS(pts[0].x, pts[0].y); ctx.moveTo(x0, y0);
+        for (let i = 1; i < pts.length; i++) {
+          const [x, y] = toS(pts[i].x, pts[i].y); ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        const last = pts[pts.length - 1];
+        const [sx, sy] = toS(last.x, last.y);
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill();
+      }
+      path(target, "rgba(200,200,190,.7)");
+      path(chaser, "#5dcaa5");
+
+      if (obs && obs.target && obs.target.position_km) {
+        const [tx, ty] = obs.target.position_km;
+        const [sx, sy] = toS(tx, ty);
+        ctx.strokeStyle = "rgba(232,193,112,.5)";
+        ctx.beginPath(); ctx.arc(sx, sy, (obs.target.tolerance_km || 50) * scale, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    function step(delta) {
+      const max = turns().length - 1;
+      turnIdx = Math.max(0, Math.min(max, turnIdx + delta));
+      renderTurn();
+    }
+
+    async function init() {
+      await loadReplay();
+      const eps = DATA.episodes || [];
+      const rail = document.getElementById("episodeRail");
+      rail.innerHTML = "";
+      const ids = eps.length ? eps.map(e => e.id) : Object.keys(DATA.replay || {});
+      ids.forEach((id, i) => {
+        const btn = document.createElement("button");
+        btn.className = "ep-btn" + (i === 0 ? " active" : "");
+        btn.dataset.id = id;
+        const sc = eps.find(e => e.id === id)?.score;
+        btn.textContent = sc != null ? `${id.slice(0, 12)}… (${sc})` : id;
+        btn.onclick = () => setEpisode(id);
+        rail.appendChild(btn);
+      });
+      if (ids.length) setEpisode(ids[0]);
+      const ms = DATA.run?.scores?.mission_score;
+      document.getElementById("runHud").textContent = ms != null ? `Run mission_score: ${ms}` : "Demo replay loaded";
+    }
+
+    document.getElementById("btnPlay").onclick = () => {
+      playing = !playing;
+      document.getElementById("btnPlay").textContent = playing ? "Pause" : "Play";
+      clearInterval(playTimer);
+      if (playing) {
+        const spd = () => Number(document.getElementById("speed").value);
+        playTimer = setInterval(() => {
+          if (turnIdx >= turns().length - 1) { playing = false; clearInterval(playTimer); document.getElementById("btnPlay").textContent = "Play"; return; }
+          step(1);
+        }, 800 / spd());
+      }
+    };
+    document.getElementById("btnPrev").onclick = () => step(-1);
+    document.getElementById("btnNext").onclick = () => step(1);
+    document.getElementById("scrub").oninput = (e) => { turnIdx = Number(e.target.value); renderTurn(); };
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); document.getElementById("btnPlay").click(); }
+      if (e.code === "ArrowLeft") step(-1);
+      if (e.code === "ArrowRight") step(1);
+    });
+    init();
+  </script>
+</body>
+</html>

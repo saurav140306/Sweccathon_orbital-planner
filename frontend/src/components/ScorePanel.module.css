@@ -1,0 +1,84 @@
+.panel {
+  border: 1px solid rgba(143, 184, 155, 0.22);
+  padding: 1rem;
+  border-radius: 2px;
+  flex: 1;
+}
+
+.label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(143, 184, 155, 0.9);
+  margin: 0 0 0.5rem;
+}
+
+.placeholder {
+  color: rgba(245, 240, 230, 0.45);
+  font-size: 0.85rem;
+}
+
+.scenarioName {
+  font-size: 0.82rem;
+  color: rgba(245, 240, 230, 0.7);
+  margin: -0.25rem 0 0.65rem;
+}
+
+.bigScore {
+  font-family: "Cormorant", serif;
+  font-size: 3.2rem;
+  font-weight: 600;
+  color: #5dcaa5;
+  margin: 0 0 0.75rem;
+  line-height: 1;
+}
+
+.table {
+  width: 100%;
+  font-size: 0.8rem;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.table td {
+  padding: 0.25rem 0;
+  color: rgba(245, 240, 230, 0.85);
+}
+
+.table td:first-child {
+  color: rgba(143, 184, 155, 0.85);
+  padding-right: 0.75rem;
+}
+
+.barBlock {
+  margin-top: 0.65rem;
+  font-size: 0.72rem;
+  color: rgba(245, 240, 230, 0.65);
+}
+
+.barTrack {
+  height: 6px;
+  background: rgba(143, 184, 155, 0.15);
+  border-radius: 3px;
+  margin: 0.35rem 0;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: #8fb89b;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.barFillEff {
+  height: 100%;
+  background: #5dcaa5;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.pct {
+  float: right;
+  color: #5dcaa5;
+}

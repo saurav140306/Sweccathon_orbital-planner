@@ -1,0 +1,57 @@
+{
+  "id": "orbital-planner",
+  "adapter": "adapter.py",
+  "name": "Orbital Planner",
+  "description": "Plan impulsive burns to rendezvous with a moving satellite or moon in 2D Earth orbit.",
+
+  "binding_vow": {
+    "version": "1.0.0",
+    "tier": "tier1",
+    "description": "The agent receives a spacecraft state, a moving target on a Keplerian orbit (satellite or massive moon), fuel budget, and time limit. It submits a JSON mission plan with impulsive burns. Physics uses RK4 gravity integration (Earth + optional moon third-body). Score rewards close approach and fuel efficiency.",
+
+    "observation_space": {
+      "type": "json",
+      "description": "{ scenario_id, name, tier, spacecraft: {position, velocity}, target: {kind, position, velocity, tolerance_km, orbit...}, fuel_budget_dv, time_limit_s, steps_remaining, instruction }"
+    },
+
+    "action_space": {
+      "type": "text",
+      "description": "JSON string: {\"burns\":[...], \"reasoning\": \"Mesocosm multi-line agent trace\", \"commit\": true}"
+    },
+
+    "reward": {
+      "type": "scalar",
+      "range": { "low": 0.0, "high": 1.0 },
+      "description": "Final mission score / 100 (0–1). Parse errors give small negative step rewards; truncated episodes score 0."
+    },
+
+    "episode": {
+      "max_steps": 5,
+      "deterministic_reset": true,
+      "supports_seed": true,
+      "parallel_episodes": 1,
+      "observability": "full"
+    },
+
+    "techniques": []
+  },
+
+  "scoring": {
+    "primary_metric": "mission_score",
+    "higher_is_better": true,
+    "metrics": [
+      {
+        "name": "mission_score",
+        "type": "terminal_field",
+        "field": "score",
+        "aggregation": "mean"
+      },
+      {
+        "name": "pass_rate",
+        "type": "terminal_field",
+        "field": "score",
+        "aggregation": "pass_rate"
+      }
+    ]
+  }
+}

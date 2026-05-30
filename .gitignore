@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+frontend/dist/
+.env
+backend/.pytest_cache/
+orbital-planner/.pytest_cache/
+*.tsbuildinfo
+demo_output.txt
+.DS_Store
