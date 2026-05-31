@@ -1,32 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
-import { fetchScenarios, runAll, streamRun } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchConfig, fetchScenarios, runAll, streamRun } from "./api";
 import { BenchmarkChart } from "./components/BenchmarkChart";
 import { OrbitalViewport3D } from "./components/OrbitalViewport3D";
 import { ReasoningPanel } from "./components/ReasoningPanel";
 import { ScenarioList } from "./components/ScenarioList";
 import { CalculationsPanel } from "./components/CalculationsPanel";
 import { ScorePanel } from "./components/ScorePanel";
-import type { BenchmarkRow, RunResult, Scenario, ScoreBreakdown } from "./types";
+import type { BenchmarkRow, RunResult, Scenario } from "./types";
 import styles from "./App.module.css";
 
-function formatScoreOutcome(score: ScoreBreakdown): string {
-  if (score.crashed) {
-    return "\n\n--- Simulation outcome ---\nCrashed into Earth. Final score: 0.0 / 100.";
-  }
-  const parts = [
-    `Final score: ${score.score.toFixed(1)} / 100.`,
-    `3D miss ${score.miss_km.toFixed(2)} km at T+${score.closest_approach_time_s.toFixed(0)} s.`,
-  ];
-  if ((score.plane_offset_km ?? 0) > 0.01) {
-    parts.push(`Cross-track plane offset ${score.plane_offset_km!.toFixed(2)} km.`);
-  }
-  parts.push(
-    `Fuel ${score.fuel_used.toFixed(3)} km/s (${(score.fuel_ratio * 100).toFixed(0)}% of Lambert/Hohmann optimal).`,
-  );
-  if (score.fuel_penalty > 0) {
-    parts.push(`Over-budget penalty −${(score.fuel_penalty * 100).toFixed(1)} pts.`);
-  }
-  return `\n\n--- Simulation outcome ---\n${parts.join(" ")}`;
+function reasoningFromResult(result: RunResult | null | undefined): string {
+  if (!result) return "";
+  if (result.reasoning_text) return result.reasoning_text;
+  const turn1 = result.plan.reasoning || result.raw_response || "";
+  const turn2 = result.score_narrative || "";
+  if (turn1 && turn2) return `${turn1}\n\n${turn2}`;
+  return turn1 || turn2;
 }
 
 export default function App() {
@@ -35,28 +24,26 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [runningAll, setRunningAll] = useState(false);
   const [reasoning, setReasoning] = useState("");
-  const [status, setStatus] = useState("Idle");
   const [resultsByScenario, setResultsByScenario] = useState<Record<string, RunResult>>({});
   const [scrubT, setScrubT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [benchmark, setBenchmark] = useState<BenchmarkRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
-  const useMock = !import.meta.env.VITE_ANTHROPIC_LIVE;
+  const [useMock, setUseMock] = useState(false);
+  const reasoningLiveRef = useRef("");
 
   const loadScenarios = useCallback(async () => {
     setLoadingScenarios(true);
     setLoadError(null);
-    setStatus("Connecting to API…");
     try {
-      const list = await fetchScenarios();
+      const [list, config] = await Promise.all([fetchScenarios(), fetchConfig()]);
       setScenarios(list);
+      setUseMock(!config.ai_available);
       setSelectedId((prev) => prev ?? list[0]?.id ?? null);
-      setStatus(`Ready — ${list.length} scenarios`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setLoadError(msg);
-      setStatus(`Error: ${msg}`);
     } finally {
       setLoadingScenarios(false);
     }
@@ -66,36 +53,61 @@ export default function App() {
     void loadScenarios();
   }, [loadScenarios]);
 
+  useEffect(() => {
+    if (running || !selectedId) return;
+    const stored = reasoningFromResult(resultsByScenario[selectedId]);
+    reasoningLiveRef.current = stored;
+    setReasoning(stored);
+  }, [selectedId, running, resultsByScenario]);
+
   const handleSelectScenario = useCallback((id: string) => {
     setSelectedId(id);
     setScrubT(0);
     setPlaying(false);
-    setReasoning("");
-    setStatus("Ready — select Run plan");
   }, []);
 
   const handleRun = useCallback(() => {
     if (!selectedId) return;
     setRunning(true);
+    reasoningLiveRef.current = "";
     setReasoning("");
     setScrubT(0);
     setPlaying(false);
-    setStatus("Planning…");
 
+    let outcomeStarted = false;
     const cancel = streamRun(selectedId, useMock, {
       onReasoning: (chunk) => {
-        setReasoning((prev) => prev + chunk);
+        setReasoning((prev) => {
+          const next = prev + chunk;
+          reasoningLiveRef.current = next;
+          return next;
+        });
+      },
+      onStatus: () => {},
+      onScoreReasoning: (chunk) => {
+        setReasoning((prev) => {
+          const next = !outcomeStarted ? `${prev}\n\n${chunk}` : prev + chunk;
+          if (!outcomeStarted) outcomeStarted = true;
+          reasoningLiveRef.current = next;
+          return next;
+        });
       },
       onComplete: (data) => {
-        setResultsByScenario((prev) => ({ ...prev, [data.scenario_id]: data }));
-        setReasoning((prev) => prev + formatScoreOutcome(data.score));
+        let final = reasoningLiveRef.current;
+        if (data.score_narrative && !outcomeStarted) {
+          final = `${final}\n\n${data.score_narrative}`;
+        }
+        reasoningLiveRef.current = final;
+        setReasoning(final);
+        setResultsByScenario((r) => ({
+          ...r,
+          [data.scenario_id]: { ...data, reasoning_text: final },
+        }));
         setRunning(false);
-        setStatus("Complete");
         setPlaying(true);
         setScrubT(0);
       },
-      onError: (msg) => {
-        setStatus(`Error: ${msg}`);
+      onError: () => {
         setRunning(false);
       },
     });
@@ -105,13 +117,11 @@ export default function App() {
 
   const handleRunAll = async () => {
     setRunningAll(true);
-    setStatus("Benchmarking all scenarios…");
     try {
       const rows = await runAll(useMock);
       setBenchmark(rows);
-      setStatus(`Benchmark done (${rows.length} scenarios)`);
-    } catch (e) {
-      setStatus(String(e));
+    } catch {
+      /* benchmark errors surface via loadError on next fetch */
     } finally {
       setRunningAll(false);
     }
@@ -119,24 +129,12 @@ export default function App() {
 
   const selected = scenarios.find((s) => s.id === selectedId) ?? null;
   const result = selectedId ? resultsByScenario[selectedId] ?? null : null;
+  const reasoningText = running ? reasoning : reasoning || reasoningFromResult(result);
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Orbital Planner</h1>
-          <p className={styles.sub}>SWEccathon — AGI & real-world modeling</p>
-        </div>
-        <div className={styles.headerRight}>
-          <p className={styles.mode}>
-            {useMock ? "Mock planner (Hohmann)" : "Claude live"}
-          </p>
-          {loadError && (
-            <button type="button" className={styles.retryBanner} onClick={() => void loadScenarios()}>
-              Retry API connection
-            </button>
-          )}
-        </div>
+        <h1 className={styles.title}>Orbital Planner</h1>
       </header>
 
       {loadError && (
@@ -174,9 +172,8 @@ export default function App() {
 
         <aside className={styles.right}>
           <CalculationsPanel scenario={selected} scrubT={scrubT} result={result} />
-          <ReasoningPanel text={reasoning} status={status} />
+          <ReasoningPanel text={reasoningText} />
           <ScorePanel
-            key={selectedId ?? "none"}
             score={result?.score ?? null}
             scenarioName={selected?.name}
             fuelBudget={selected?.fuel_budget_dv}

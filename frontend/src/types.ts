@@ -87,7 +87,17 @@ export interface RunResult {
   scenario_id: string;
   plan: MissionPlan;
   score: ScoreBreakdown;
+  score_narrative: string;
+  planner_mode: string;
   raw_response?: string;
+  /** Full streamed reasoning text (Turn 1 + Turn 2) for UI restore. */
+  reasoning_text?: string;
+}
+
+export interface PlannerConfig {
+  planner_mode: "claude" | "offline";
+  ai_available: boolean;
+  score_source: string;
 }
 
 export interface BenchmarkRow {

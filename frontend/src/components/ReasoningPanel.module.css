@@ -10,42 +10,11 @@
   background: linear-gradient(165deg, rgba(22, 36, 28, 0.98) 0%, rgba(15, 26, 20, 0.99) 100%);
 }
 
-.headerRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
 .label {
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: rgba(143, 184, 155, 0.9);
-  margin: 0;
-}
-
-.turnBadge {
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(232, 193, 112, 0.95);
-  border: 1px solid rgba(232, 193, 112, 0.35);
-  padding: 0.15rem 0.4rem;
-  border-radius: 2px;
-}
-
-.status {
-  font-size: 0.72rem;
-  color: rgba(93, 202, 165, 0.85);
-  margin: 0 0 0.5rem;
-}
-
-.statusDone {
-  font-size: 0.72rem;
-  color: #5dcaa5;
-  font-weight: 600;
   margin: 0 0 0.5rem;
 }
 
