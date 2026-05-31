@@ -13,6 +13,12 @@ import {
 } from "../orbitalMotion";
 import { eciToScene, elementsFromState, propagateElements, type Vec3, vecMag } from "../kepler3d";
 import { OrbitalBirdEye } from "./OrbitalBirdEye";
+import { ViewportKey } from "./ViewportKey";
+import {
+  ChaserLegendIcon,
+  EarthLegendIcon,
+  TargetLegendIcon,
+} from "./ViewportLegendIcons";
 import styles from "./OrbitalCanvas.module.css";
 
 const EARTH_R = 6371;
@@ -423,8 +429,15 @@ export function OrbitalViewport3D({
     renderer.domElement.style.display = "block";
     mount.replaceChildren(renderer.domElement);
 
+    const ensureCanvas = () => {
+      if (!mount.contains(renderer.domElement)) {
+        mount.replaceChildren(renderer.domElement);
+      }
+    };
+
     const resize = () => {
       if (disposed) return;
+      ensureCanvas();
       const { w, h } = readMountSize(mount);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -549,6 +562,7 @@ export function OrbitalViewport3D({
 
     const tick = (now: number) => {
       if (disposed) return;
+      ensureCanvas();
       const dt = Math.min(0.05, (now - lastWall) / 1000);
       lastWall = now;
 
@@ -621,54 +635,61 @@ export function OrbitalViewport3D({
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.dualViewport}>
-        <div className={styles.main3d}>
-          <p className={styles.viewLabel}>3D — auto-tracked</p>
-          <div className={styles.viewportShell}>
-            <div ref={mountRef} className={styles.canvasMount} aria-label="3D orbital viewport">
+      <div className={styles.viewportRow}>
+        <div className={styles.dualViewport}>
+          <div className={styles.main3d}>
+            <p className={styles.viewLabel}>3D — auto-tracked</p>
+            <div className={styles.viewportShell}>
+              <div ref={mountRef} className={styles.canvasMount} aria-label="3D orbital viewport" />
               {glError && <p className={styles.glError}>{glError}</p>}
-            </div>
-            {scenario && (
-              <div className={styles.legend}>
-                <span className={styles.legendItem}>
-                  <span className={styles.swatchChaser} /> Chaser
-                </span>
-                <span className={styles.legendItem}>
-                  <span className={styles.swatchTarget} /> Target
-                </span>
-                <span className={styles.legendItem}>
-                  <span className={styles.swatchEarth} /> Earth spin
-                </span>
-                {ca && (
+              {scenario && (
+                <div className={styles.legend}>
                   <span className={styles.legendItem}>
-                    <span className={styles.swatchMiss} /> Miss {ca.miss_km.toFixed(1)} km
+                    <ChaserLegendIcon size={14} /> Chaser
                   </span>
-                )}
-                {motion && (
-                  <span className={styles.legendMeta}>
-                    {motion.orbit_type === "elliptical"
-                      ? `e=${motion.eccentricity.toFixed(2)} · i=${((motion.inclination_rad * 180) / Math.PI).toFixed(0)}°`
-                      : `r=${motion.orbit_radius_km.toFixed(0)} km`}
+                  <span className={styles.legendItem}>
+                    <TargetLegendIcon
+                      kind={motion?.kind === "moon" ? "moon" : "satellite"}
+                      size={14}
+                    />{" "}
+                    Target
                   </span>
-                )}
-              </div>
-            )}
-            {ca && (
-              <div className={styles.missBadge}>
-                <strong>Miss {ca.miss_km.toFixed(1)} km</strong>
-                <span>closest approach T+{ca.t_s.toFixed(0)} s</span>
-                {liveSep != null && (
-                  <span>now {liveSep.toFixed(1)} km apart</span>
-                )}
-              </div>
-            )}
-            {score?.crashed && (
-              <div className={`${styles.missBadge} ${styles.missBad}`}>Crashed — no intercept</div>
-            )}
+                  <span className={styles.legendItem}>
+                    <EarthLegendIcon size={14} /> Earth spin
+                  </span>
+                  {ca && (
+                    <span className={styles.legendItem}>
+                      <span className={styles.swatchMiss} /> Miss {ca.miss_km.toFixed(1)} km
+                    </span>
+                  )}
+                  {motion && (
+                    <span className={styles.legendMeta}>
+                      {motion.orbit_type === "elliptical"
+                        ? `e=${motion.eccentricity.toFixed(2)} · i=${((motion.inclination_rad * 180) / Math.PI).toFixed(0)}°`
+                        : `r=${motion.orbit_radius_km.toFixed(0)} km`}
+                    </span>
+                  )}
+                </div>
+              )}
+              {ca && (
+                <div className={styles.missBadge}>
+                  <strong>Miss {ca.miss_km.toFixed(1)} km</strong>
+                  <span>closest approach T+{ca.t_s.toFixed(0)} s</span>
+                  {liveSep != null && (
+                    <span>now {liveSep.toFixed(1)} km apart</span>
+                  )}
+                </div>
+              )}
+              {score?.crashed && (
+                <div className={`${styles.missBadge} ${styles.missBad}`}>Crashed — no intercept</div>
+              )}
+            </div>
           </div>
+
+          <OrbitalBirdEye scenario={scenario} score={score} simTRef={simTRef} />
         </div>
 
-        <OrbitalBirdEye scenario={scenario} score={score} simTRef={simTRef} />
+        <ViewportKey scenario={scenario} />
       </div>
 
       <div className={styles.controls}>

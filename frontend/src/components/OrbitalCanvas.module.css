@@ -10,6 +10,17 @@
   flex: 1;
   gap: 0.65rem;
   min-height: 420px;
+  min-width: 0;
+  width: 100%;
+}
+
+.viewportRow {
+  position: relative;
+  display: flex;
+  flex: 1;
+  gap: 0.65rem;
+  min-height: 420px;
+  min-width: 0;
 }
 
 .main3d {
@@ -133,34 +144,85 @@
   gap: 0.35rem;
 }
 
-.legendMeta {
-  color: rgba(245, 240, 230, 0.45);
+.legendIcon {
+  flex-shrink: 0;
+  display: block;
 }
 
-.swatchChaser,
-.swatchTarget,
-.swatchEarth {
+.orbitSwatch {
+  flex-shrink: 0;
   width: 14px;
   height: 3px;
   border-radius: 1px;
+  opacity: 0.9;
 }
 
-.swatchChaser {
-  background: #f5f0e6;
-}
-
-.swatchTarget {
-  background: #5dcaa5;
-}
-
-.swatchEarth {
-  background: #e8c170;
+.legendMeta {
+  color: rgba(245, 240, 230, 0.45);
 }
 
 .swatchMiss {
   width: 14px;
   border-top: 2px dashed #e8c170;
   height: 0;
+}
+
+.keyDropdown {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 5;
+}
+
+.keyToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.45rem;
+  border: 1px solid rgba(143, 184, 155, 0.35);
+  border-radius: 3px;
+  background: rgba(22, 36, 28, 0.9);
+  color: rgba(245, 240, 230, 0.75);
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.keyToggle:hover {
+  border-color: rgba(93, 202, 165, 0.55);
+  color: #f5f0e6;
+}
+
+.keyToggleIcons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.keyPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 118px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(143, 184, 155, 0.3);
+  border-radius: 3px;
+  background: rgba(22, 36, 28, 0.96);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-size: 0.68rem;
+  color: rgba(245, 240, 230, 0.8);
+}
+
+.keyItemCompact {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
 }
 
 .missBadge {
