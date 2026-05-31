@@ -10,7 +10,6 @@ from orbital_planner.constants import MU_EARTH_KM3_S2
 from orbital_planner.orbital_motion import target_position_at, target_velocity_at
 from orbital_planner.physics import apply_burn, simulate_trajectory
 from orbital_planner.schemas import Burn, MissionPlan, Scenario, SpacecraftState, TargetSpec
-from orbital_planner.reasoning import format_mesocosm_reasoning
 
 
 def circular_speed(radius_km: float, mu: float = MU_EARTH_KM3_S2) -> float:
@@ -133,26 +132,7 @@ def build_coplanar_hohmann_plan(
         Burn(time_s=0.0, dv=dv1),
         Burn(time_s=apo_t, dv=dv2),
     ]
-    ctx = scenario or Scenario(
-        id="synthetic",
-        name="Transfer",
-        tier="medium",
-        spacecraft=SpacecraftState(position=position, velocity=velocity),
-        target=target or TargetSpec(position=target_position, tolerance_km=50.0),
-        fuel_budget_dv=2.0,
-        time_limit_s=time_limit_s,
-    )
-    return MissionPlan(
-        burns=burns,
-        reasoning=format_mesocosm_reasoning(
-            ctx,
-            MissionPlan(burns=burns, reasoning=""),
-            dv1_mag=dv1_mag,
-            dv2_mag=dv2_mag,
-            apo_t=apo_t,
-            strategy="coplanar_hohmann",
-        ),
-    )
+    return MissionPlan(burns=burns, reasoning="")
 
 
 def build_rendezvous_plan(scenario: Scenario) -> MissionPlan:
@@ -180,13 +160,7 @@ def build_rendezvous_plan(scenario: Scenario) -> MissionPlan:
         if len(dv) == 2:
             dv = (dv[0], dv[1], 0.0)
         plan = MissionPlan(burns=[Burn(time_s=0.0, dv=dv)], reasoning="")
-        return plan.model_copy(
-            update={
-                "reasoning": format_mesocosm_reasoning(
-                    scenario, plan, strategy="phasing"
-                )
-            }
-        )
+        return plan
 
     plan = build_coplanar_hohmann_plan(
         sc.position,
@@ -216,12 +190,4 @@ def build_rendezvous_plan(scenario: Scenario) -> MissionPlan:
         plan.burns[0],
         Burn(time_s=apo_t, dv=(float(dv2[0]), float(dv2[1]), float(dv2[2]) if len(dv2) > 2 else 0.0)),
     ]
-    return MissionPlan(
-        burns=burns,
-        reasoning=format_mesocosm_reasoning(
-            scenario,
-            MissionPlan(burns=burns, reasoning=""),
-            apo_t=apo_t,
-            strategy="rendezvous",
-        ),
-    )
+    return MissionPlan(burns=burns, reasoning="")
