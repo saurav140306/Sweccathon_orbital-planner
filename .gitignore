@@ -6,7 +6,7 @@ node_modules/
 frontend/dist/
 .env
 backend/.pytest_cache/
-orbital-planner/.pytest_cache/
+.pytest_cache/
 *.tsbuildinfo
 demo_output.txt
 .DS_Store

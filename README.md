@@ -7,24 +7,26 @@
 ## Monorepo
 
 ```
-backend/          FastAPI + NumPy physics + Anthropic agent
-frontend/         React + Vite + Canvas viewport
-orbital-planner/  Mesocosm env (benchanything.json, env.py, adapter.py, showcase/)
+backend/              FastAPI + NumPy physics + Anthropic agent
+frontend/             React + Vite + Canvas viewport
+env.py, adapter.py    Mesocosm sandbox entrypoints (repo root)
+benchanything.json    Mesocosm manifest (repo root)
+showcase/             GitHub Pages gallery replay
+orbital_planner/      Env implementation package
 ```
 
 ## Mesocosm
 
-The `orbital-planner/` folder is the [Mesocosm](https://mesocosm.swecc.org) submission package.
+Mesocosm files live at the **repo root** (`env.py`, `adapter.py`, `benchanything.json`, `showcase/`).
 
 ```powershell
-cd orbital-planner
 mesocosm validate benchanything.json
 python adapter.py
 ```
 
-Submit with `--github-url https://github.com/saurav140306/Sweccathon_orbital-planner` (env files live in `orbital-planner/` subfolder — see Mesocosm docs if root layout is required).
+Submit with `--github-url https://github.com/Dirac3011/Sweccathon_orbital-planner`
 
-Showcase: `orbital-planner/showcase/index.html`
+Showcase (GitHub Pages): `showcase/index.html` → https://dirac3011.github.io/Sweccathon_orbital-planner/
 
 ## Quick start
 
