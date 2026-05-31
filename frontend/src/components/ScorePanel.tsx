@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ScoreBreakdown } from "../types";
+import { SCORE_WEIGHTS, scoreComponentPoints } from "../scoring";
 import styles from "./ScorePanel.module.css";
 
 interface Props {
@@ -39,10 +40,11 @@ export function ScorePanel({ score, scenarioName, fuelBudget = 2 }: Props) {
   const display = useCountUp(score?.score ?? 0, score != null);
   const fuelPct = score ? Math.min(100, (score.fuel_used / fuelBudget) * 100) : 0;
   const effPct = score ? Math.min(100, score.fuel_ratio * 100) : 0;
-  const proximityPts = score ? score.hit_score * 50 : 0;
-  const fuelPts = score ? Math.min(1, score.fuel_ratio) * 30 : 0;
-  const budgetPts = score ? Math.max(0, 1 - score.fuel_used / fuelBudget) * 20 : 0;
+  const pts = score ? scoreComponentPoints(score, fuelBudget) : null;
   const penaltyPts = score ? score.fuel_penalty * 100 : 0;
+  const wP = SCORE_WEIGHTS.proximity * 100;
+  const wF = SCORE_WEIGHTS.fuel * 100;
+  const wB = SCORE_WEIGHTS.budget * 100;
 
   if (!score) {
     return (
@@ -62,8 +64,8 @@ export function ScorePanel({ score, scenarioName, fuelBudget = 2 }: Props) {
       <table className={styles.table}>
         <tbody>
           <tr>
-            <td>Proximity (50%)</td>
-            <td>{(score.hit_score * 100).toFixed(1)}% · {proximityPts.toFixed(1)} pts</td>
+            <td>Reach target ({wP}%)</td>
+            <td>{(score.hit_score * 100).toFixed(1)}% · {pts!.proximityPts.toFixed(1)} pts</td>
           </tr>
           <tr>
             <td>Miss distance (3D)</td>
@@ -86,12 +88,12 @@ export function ScorePanel({ score, scenarioName, fuelBudget = 2 }: Props) {
             <td>{score.fuel_used.toFixed(3)} km/s</td>
           </tr>
           <tr>
-            <td>Fuel efficiency (30%)</td>
-            <td>{effPct.toFixed(0)}% · {fuelPts.toFixed(1)} pts</td>
+            <td>Fuel efficiency ({wF}%)</td>
+            <td>{effPct.toFixed(0)}% · {pts!.fuelPts.toFixed(1)} pts</td>
           </tr>
           <tr>
-            <td>Budget headroom (20%)</td>
-            <td>{budgetPts.toFixed(1)} pts</td>
+            <td>Budget headroom ({wB}%)</td>
+            <td>{pts!.budgetPts.toFixed(1)} pts</td>
           </tr>
           <tr>
             <td>Optimal Δv (Lambert/Hohmann)</td>
@@ -110,7 +112,7 @@ export function ScorePanel({ score, scenarioName, fuelBudget = 2 }: Props) {
         </tbody>
       </table>
       <div className={styles.barBlock}>
-        <span>Fuel vs budget</span>
+        <span>Fuel used (secondary — reach target first)</span>
         <div className={styles.barTrack}>
           <div className={styles.barFill} style={{ width: `${fuelPct}%` }} />
         </div>

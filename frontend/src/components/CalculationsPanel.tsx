@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CalculationSnapshot, RunResult, Scenario, ScoreBreakdown } from "../types";
 import { fetchCalculations } from "../api";
+import { SCORE_WEIGHTS, scoreComponentPoints, scoreFormulaText } from "../scoring";
 import styles from "./CalculationsPanel.module.css";
 
 interface Props {
@@ -43,11 +44,13 @@ function scoreValues(result: RunResult | null, sc: Record<string, number | strin
 }
 
 function scoreBreakdownRows(score: ScoreBreakdown, fuelBudget: number) {
-  const proximityPts = score.hit_score * 50;
-  const fuelPts = Math.min(1, score.fuel_ratio) * 30;
-  const budgetPts = Math.max(0, 1 - score.fuel_used / fuelBudget) * 20;
-  const penaltyPts = score.fuel_penalty * 100;
-  return { proximityPts, fuelPts, budgetPts, penaltyPts };
+  const { proximityPts, fuelPts, budgetPts } = scoreComponentPoints(score, fuelBudget);
+  return {
+    proximityPts,
+    fuelPts,
+    budgetPts,
+    penaltyPts: score.fuel_penalty * 100,
+  };
 }
 
 export function CalculationsPanel({ scenario, scrubT, result }: Props) {
@@ -173,25 +176,22 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
           <div className={styles.formula}>
             {String(
               sc?.miss_scale_formula ??
-                "miss_scale = tolerance × 20 × (1 + 0.15·sin i)",
+                "miss_scale = tolerance × 58 × tier × (1 + 0.12·sin i)",
             )}
           </div>
           <div className={styles.formula}>
             {String(
               sc?.hit_formula ??
-                "proximity = 1 / (1 + miss/miss_scale + 0.15·plane/miss_scale)",
+                "proximity = 1 / (1 + (miss/miss_scale)^0.52 + …), tolerance bonus up to 5×",
             )}
           </div>
           <div className={styles.formula}>
-            {String(
-              sc?.score_formula ??
-                "100×(0.5·proximity + 0.3·fuel + 0.2·budget) − 100×penalty",
-            )}
+            {String(sc?.score_formula ?? scoreFormulaText())}
           </div>
           {sv.missScale > 0 && (
             <Row label="Miss scale" value={fmt(sv.missScale, 1)} unit="km" />
           )}
-          <Row label="Proximity" value={`${fmt(sv.hitScore * 100, 1)}%`} />
+          <Row label="Reach target" value={`${fmt(sv.hitScore * 100, 1)}%`} />
           <Row
             label="Miss (3D)"
             value={sv.crashed ? "—" : fmt(sv.missKm, 2)}
@@ -214,9 +214,21 @@ export function CalculationsPanel({ scenario, scrubT, result }: Props) {
           )}
           {breakdown && (
             <>
-              <Row label="50% proximity" value={fmt(breakdown.proximityPts, 1)} unit="pts" />
-              <Row label="30% fuel eff." value={fmt(breakdown.fuelPts, 1)} unit="pts" />
-              <Row label="20% budget" value={fmt(breakdown.budgetPts, 1)} unit="pts" />
+              <Row
+                label={`${SCORE_WEIGHTS.proximity * 100}% reach target`}
+                value={fmt(breakdown.proximityPts, 1)}
+                unit="pts"
+              />
+              <Row
+                label={`${SCORE_WEIGHTS.fuel * 100}% fuel eff.`}
+                value={fmt(breakdown.fuelPts, 1)}
+                unit="pts"
+              />
+              <Row
+                label={`${SCORE_WEIGHTS.budget * 100}% budget`}
+                value={fmt(breakdown.budgetPts, 1)}
+                unit="pts"
+              />
             </>
           )}
           <p className={styles.bigScore}>{fmt(sv.finalScore, 1)}</p>
