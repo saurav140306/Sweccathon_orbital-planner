@@ -1,4 +1,4 @@
-import type { BenchmarkRow, CalculationSnapshot, RunResult, Scenario, ScoreBreakdown } from "./types";
+import type { BenchmarkRow, CalculationSnapshot, PlannerConfig, RunResult, Scenario, ScoreBreakdown } from "./types";
 
 /** Direct backend URL — used when Vite proxy races startup or fails. */
 const DIRECT_BACKEND = "http://127.0.0.1:8000";
@@ -59,6 +59,11 @@ async function apiFetch(
   throw lastError ?? new Error("API request failed");
 }
 
+export async function fetchConfig(): Promise<PlannerConfig> {
+  const res = await apiFetch("/api/config");
+  return res.json();
+}
+
 export async function fetchScenarios(): Promise<Scenario[]> {
   const res = await apiFetch("/api/scenarios");
   return res.json();
@@ -100,20 +105,34 @@ export function streamRun(
   useMock: boolean,
   handlers: {
     onReasoning: (chunk: string) => void;
+    onScoreReasoning?: (chunk: string) => void;
+    onStatus?: (phase: string, message?: string) => void;
     onComplete: (result: RunResult) => void;
     onError: (msg: string) => void;
   },
 ): () => void {
   const controller = new AbortController();
+  const streamUrl = `${DIRECT_BACKEND}/api/run/stream`;
+  const streamTimeoutMs = 120_000;
+  let timedOut = false;
+
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, streamTimeoutMs);
 
   (async () => {
     try {
-      const res = await apiFetch("/api/run/stream", {
+      const res = await fetch(streamUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenario_id: scenarioId, use_mock: useMock }),
         signal: controller.signal,
       });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(body ? `HTTP ${res.status}: ${body.slice(0, 200)}` : `HTTP ${res.status}`);
+      }
       if (!res.body) throw new Error("Stream failed");
 
       const reader = res.body.getReader();
@@ -136,20 +155,34 @@ export function streamRun(
           if (!data) continue;
           const payload = JSON.parse(data);
           if (event === "reasoning") handlers.onReasoning(payload.text ?? "");
+          if (event === "score_reasoning") handlers.onScoreReasoning?.(payload.text ?? "");
+          if (event === "status") {
+            handlers.onStatus?.(payload.phase ?? "", payload.message as string | undefined);
+          }
           if (event === "complete") handlers.onComplete(payload as RunResult);
           if (event === "error") handlers.onError(payload.message ?? "Error");
         }
       }
     } catch (e) {
-      if (e instanceof Error && e.name === "AbortError") return;
+      if (e instanceof Error && e.name === "AbortError") {
+        if (timedOut) {
+          handlers.onError("Mission run timed out after 2 minutes. Retry or use offline baseline.");
+        }
+        return;
+      }
       handlers.onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   })();
 
-  return () => controller.abort();
+  return () => {
+    window.clearTimeout(timeoutId);
+    controller.abort();
+  };
 }
 
-export async function runAll(useMock = true): Promise<BenchmarkRow[]> {
+export async function runAll(useMock = false): Promise<BenchmarkRow[]> {
   const res = await apiFetch(`/api/run-all?use_mock=${useMock}`, { method: "POST" });
   return res.json();
 }
