@@ -16,6 +16,19 @@ from orbital_planner.orbital_motion import (
     target_velocity_at,
 )
 from orbital_planner.physics import gravity_breakdown_at
+from orbital_planner.reward import (
+    BUDGET_USE_FACTOR,
+    FUEL_PENALTY_CAP,
+    INCL_MISS_SCALE_FACTOR,
+    MISS_SCALE_TOLERANCE_MULT,
+    PLANE_TERM_WEIGHT,
+    PROXIMITY_EXPONENT,
+    SCORE_WEIGHT_BUDGET,
+    SCORE_WEIGHT_FUEL,
+    SCORE_WEIGHT_PROXIMITY,
+    TIER_MISS_SCALE,
+    miss_scale_km,
+)
 from orbital_planner.schemas import CalculationSnapshot, Scenario, ScoreBreakdown
 from orbital_planner.vec3 import vec3_mag
 
@@ -57,7 +70,8 @@ def build_calculation_snapshot(
     grav = gravity_breakdown_at(chaser_pos, t_s, tg if tg.kind == "moon" else None)
 
     incl = el.inclination_rad
-    miss_scale = tg.tolerance_km * 20.0 * (1.0 + 0.15 * math.sin(incl))
+    miss_scale = miss_scale_km(scenario, tg)
+    tier_mult = TIER_MISS_SCALE.get(scenario.tier, 1.0)
 
     score_block: dict | None = None
     if score is not None:
@@ -70,10 +84,24 @@ def build_calculation_snapshot(
             "hit_score": score.hit_score,
             "fuel_penalty": score.fuel_penalty,
             "score": score.score,
-            "miss_scale_formula": "miss_scale = tolerance × 20 × (1 + 0.15·sin i)",
-            "hit_formula": "proximity = 1 / (1 + miss/miss_scale + 0.15·plane/miss_scale)",
+            "miss_scale_formula": (
+                f"miss_scale = tolerance × {MISS_SCALE_TOLERANCE_MULT:.0f} × tier({tier_mult:.2f}) "
+                f"× (1 + {INCL_MISS_SCALE_FACTOR:.2f}·sin i)"
+            ),
+            "hit_formula": (
+                f"proximity = 1 / (1 + (miss/miss_scale)^{PROXIMITY_EXPONENT:.2f} "
+                f"+ {PLANE_TERM_WEIGHT:.2f}·(plane/miss_scale)^{PROXIMITY_EXPONENT:.2f}), "
+                f"with tolerance bonus up to 5× tolerance"
+            ),
             "miss_scale_km": miss_scale,
-            "score_formula": "100×(0.5·proximity + 0.3·fuel + 0.2·budget) − 100×penalty",
+            "score_formula": (
+                f"100×({SCORE_WEIGHT_PROXIMITY:.0%}·proximity + "
+                f"{SCORE_WEIGHT_FUEL:.0%}·fuel + {SCORE_WEIGHT_BUDGET:.0%}·budget) "
+                f"− min(100×penalty, {FUEL_PENALTY_CAP * 100:.0f})"
+            ),
+            "weight_proximity": SCORE_WEIGHT_PROXIMITY,
+            "weight_fuel": SCORE_WEIGHT_FUEL,
+            "weight_budget": SCORE_WEIGHT_BUDGET,
             "crashed": score.crashed,
             "closest_approach_time_s": score.closest_approach_time_s,
         }
