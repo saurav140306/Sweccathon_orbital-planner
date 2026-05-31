@@ -13,14 +13,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from orbital_planner.agent import plan_mission_with_retry
 from orbital_planner.calculations import build_calculation_snapshot
+from orbital_planner.run_pipeline import (
+    plan_for_scenario,
+    planner_mode,
+    score_breakdown,
+    score_narrative_for_run,
+    score_payload,
+)
 from orbital_planner.schemas import ScoreBreakdown
-from orbital_planner.reward import score_mission
 from orbital_planner.scenarios import ALL_SCENARIOS, SCENARIOS, TIER_ORDER
 from orbital_planner.kepler3d import sample_orbit_positions
 from orbital_planner.orbital_motion import enrich_target, spacecraft_elements, target_orbit_path
-from orbital_planner.transfer import build_coplanar_hohmann_plan
 
 load_dotenv()
 
@@ -54,7 +58,19 @@ class RunResponse(BaseModel):
     scenario_id: str
     plan: dict[str, Any]
     score: dict[str, Any]
+    score_narrative: str
+    planner_mode: str
     raw_response: str | None = None
+
+
+@app.get("/api/config")
+def get_config() -> dict[str, Any]:
+    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    return {
+        "planner_mode": "claude" if has_key else "offline",
+        "ai_available": has_key,
+        "score_source": "physics_simulation",
+    }
 
 
 @app.get("/api/health")
@@ -112,26 +128,17 @@ async def run_mission(body: RunRequest) -> RunResponse:
     if not scenario:
         raise HTTPException(404, f"Unknown scenario {body.scenario_id!r}")
 
-    raw: str | None = None
-    if body.use_mock or not os.environ.get("ANTHROPIC_API_KEY"):
-        plan = build_coplanar_hohmann_plan(
-            scenario.spacecraft.position,
-            scenario.spacecraft.velocity,
-            scenario.target.position,
-            time_limit_s=scenario.time_limit_s,
-            target=scenario.target,
-            scenario=scenario,
-        )
-        raw = plan.reasoning
-    else:
-        plan, raw = await asyncio.to_thread(plan_mission_with_retry, scenario)
+    plan, reasoning, mode = await plan_for_scenario(scenario, use_mock=body.use_mock)
+    breakdown = score_breakdown(scenario, plan)
+    narrative = await score_narrative_for_run(scenario, plan, breakdown, mode=mode)
 
-    breakdown = score_mission(scenario, plan)
     return RunResponse(
         scenario_id=scenario.id,
         plan=plan.model_dump(),
-        score=_score_payload(breakdown),
-        raw_response=raw,
+        score=score_payload(breakdown),
+        score_narrative=narrative,
+        planner_mode=mode,
+        raw_response=reasoning if mode == "claude" else None,
     )
 
 
@@ -144,45 +151,83 @@ async def run_mission_stream(body: RunRequest) -> StreamingResponse:
     async def event_stream() -> AsyncGenerator[str, None]:
         yield _sse("status", {"phase": "thinking"})
         try:
-            if body.use_mock or not os.environ.get("ANTHROPIC_API_KEY"):
-                plan = build_coplanar_hohmann_plan(
-                    scenario.spacecraft.position,
-                    scenario.spacecraft.velocity,
-                    scenario.target.position,
-                    time_limit_s=scenario.time_limit_s,
-                    target=scenario.target,
-                )
-                reasoning = plan.reasoning
-                for i in range(0, len(reasoning), 12):
-                    yield _sse("reasoning", {"text": reasoning[i : i + 12]})
-                    await asyncio.sleep(0.02)
-                raw = reasoning
+            plan_task = asyncio.create_task(plan_for_scenario(scenario, use_mock=body.use_mock))
+            waited = 0.0
+            while not plan_task.done():
+                try:
+                    plan, reasoning, mode = await asyncio.wait_for(asyncio.shield(plan_task), timeout=2.0)
+                    break
+                except asyncio.TimeoutError:
+                    waited += 2.0
+                    yield _sse(
+                        "status",
+                        {
+                            "phase": "thinking",
+                            "message": f"Mesocosm AI planning… ({int(waited)}s)",
+                        },
+                    )
             else:
-                plan, raw = await asyncio.to_thread(plan_mission_with_retry, scenario)
-                reasoning = plan.reasoning or raw or ""
-                for i in range(0, len(reasoning), 14):
-                    yield _sse("reasoning", {"text": reasoning[i : i + 14]})
-                    await asyncio.sleep(0.018)
+                plan, reasoning, mode = plan_task.result()
+
+            chunk = 14 if mode == "claude" else 12
+            for i in range(0, len(reasoning), chunk):
+                yield _sse("reasoning", {"text": reasoning[i : i + chunk]})
+                await asyncio.sleep(0.018 if mode == "claude" else 0.02)
 
             yield _sse("status", {"phase": "scoring"})
-            breakdown = score_mission(scenario, plan)
+            breakdown = await asyncio.to_thread(score_breakdown, scenario, plan)
+            narrative = await score_narrative_for_run(
+                scenario,
+                plan,
+                breakdown,
+                mode=mode,
+                ai_summary=False,
+            )
+
+            yield _sse("status", {"phase": "outcome"})
+            for i in range(0, len(narrative), chunk):
+                yield _sse("score_reasoning", {"text": narrative[i : i + chunk]})
+                await asyncio.sleep(0.018)
+
             yield _sse(
                 "complete",
                 {
                     "scenario_id": scenario.id,
                     "plan": plan.model_dump(),
-                    "score": _score_payload(breakdown),
-                    "raw_response": raw,
+                    "score": score_payload(breakdown),
+                    "score_narrative": narrative,
+                    "planner_mode": mode,
+                    "raw_response": reasoning if mode == "claude" else None,
                 },
             )
+        except asyncio.TimeoutError:
+            yield _sse(
+                "error",
+                {
+                    "message": (
+                        "Mesocosm AI planner timed out. "
+                        "Retry or pass use_mock=true for the offline baseline."
+                    ),
+                },
+            )
+        except HTTPException as exc:
+            yield _sse("error", {"message": exc.detail})
         except Exception as exc:
             yield _sse("error", {"message": str(exc)})
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/run-all")
-async def run_all(use_mock: bool = Query(True)) -> list[dict[str, Any]]:
+async def run_all(use_mock: bool = Query(False)) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for scenario in ALL_SCENARIOS:
         resp = await run_mission(RunRequest(scenario_id=scenario.id, use_mock=use_mock))
@@ -200,21 +245,7 @@ async def run_all(use_mock: bool = Query(True)) -> list[dict[str, Any]]:
 
 
 def _score_payload(breakdown) -> dict[str, Any]:
-    return {
-        "miss_km": breakdown.miss_km,
-        "fuel_used": breakdown.fuel_used,
-        "optimal_dv": breakdown.optimal_dv,
-        "fuel_ratio": breakdown.fuel_ratio,
-        "hit_score": breakdown.hit_score,
-        "fuel_penalty": breakdown.fuel_penalty,
-        "score": breakdown.score,
-        "crashed": breakdown.crashed,
-        "closest_approach_time_s": breakdown.closest_approach_time_s,
-        "plane_offset_km": breakdown.plane_offset_km,
-        "trajectory": [p.model_dump() for p in breakdown.trajectory],
-        "target_trajectory": [p.model_dump() for p in breakdown.target_trajectory],
-        "earth_spin_rad_s": breakdown.earth_spin_rad_s,
-    }
+    return score_payload(breakdown)
 
 
 def _sse(event: str, data: dict[str, Any]) -> str:

@@ -11,7 +11,7 @@ from typing import Any
 from anthropic import Anthropic
 
 from orbital_planner.orbital_motion import enrich_target
-from orbital_planner.schemas import MissionPlan, Scenario
+from orbital_planner.schemas import MissionPlan, Scenario, ScoreBreakdown
 
 SYSTEM = """You are an orbital mission planner for a 3D Earth-centered inertial (ECI) model.
 Units: kilometers, km/s, seconds. Earth mu = 398600 km^3/s^2, radius = 6371 km.
@@ -20,13 +20,17 @@ that may be inclined (i, Ω) and elliptical (e > 0).
 Moon gravity perturbs the chaser: a_moon = μ_moon (r_moon − r) / |r_moon − r|³.
 The moon's orbit is fixed (restricted 3-body); chaser integrated with Earth + moon gravity via RK4 in 3D.
 Plan burns to rendezvous: minimize 3D closest approach to the target's instantaneous position.
-Scoring (after simulation): 50% proximity (3D miss + cross-track plane offset at closest approach),
-30% fuel efficiency vs Lambert/Hohmann baseline, 20% fuel budget headroom, minus penalty if over budget.
+Scoring (after simulation): reaching the target dominates — 75% from 3D closest approach,
+10% from fuel efficiency vs ideal transfer, 15% from budget headroom; over-budget penalty capped at 12 pts.
+After you commit, the environment simulates your burns and returns Turn 2 results — you do NOT invent the score.
 Impulsive burns add a delta-v vector instantly at the given time.
 Reply with STRICT JSON only — no markdown fences, no text outside the object:
 {"burns":[{"time_s":0,"dv":[0.0,0.0,0.0]}],"reasoning":"Multi-line Mesocosm agent trace: observe scenario, strategy, burn schedule, commit check","commit":true}
 Rules:
-- reasoning MUST be a multi-sentence agent trace (like a Mesocosm replay turn): observation → strategy → burns → risks → commit
+- reasoning MUST be a clear Mesocosm replay turn for a general audience: plain English first, then key numbers
+- structure: (1) what you see / mission goal, (2) constraints & risks in simple terms, (3) strategy in plain language, (4) burn schedule with when + size + direction, (5) budget check, (6) commit
+- explain jargon briefly when used (e.g. "inclination = orbit tilt", "Δv = speed change from engine burn")
+- include technical Δv vectors and times for experts, but lead each burn with a simple sentence
 - burns sorted by time_s ascending; times within the scenario time limit
 - dv is [dx, dy, dz] in km/s (3D); respect the fuel budget (sum of |dv|)
 - for inclined targets, note cross-track separation risk; plane-change Δv may be needed
@@ -99,6 +103,58 @@ def plan_mission(
     )
     raw = message.content[0].text
     return parse_plan(raw), raw
+
+
+def _build_outcome_prompt(scenario: Scenario, plan: MissionPlan, breakdown: ScoreBreakdown) -> str:
+    tg = enrich_target(scenario.target)
+    burns_txt = "\n".join(
+        f"  - t={b.time_s:.0f}s dv={list(b.dv)}" for b in plan.burns
+    ) or "  (no burns)"
+    return f"""Turn 2 — interpret the simulation results for scenario "{scenario.name}".
+
+Your committed burns:
+{burns_txt}
+
+Physics engine results (authoritative — do not change these numbers):
+- score: {breakdown.score}/100
+- closest_approach_km: {breakdown.miss_km}
+- closest_approach_time_s: {breakdown.closest_approach_time_s}
+- plane_offset_km: {breakdown.plane_offset_km}
+- fuel_used_km_s: {breakdown.fuel_used}
+- fuel_budget_km_s: {scenario.fuel_budget_dv}
+- fuel_ratio_vs_ideal: {breakdown.fuel_ratio}
+- proximity_component: {breakdown.hit_score}
+- crashed: {breakdown.crashed}
+- target_tolerance_km: {tg.tolerance_km}
+
+Write 6–10 sentences in plain English for a general audience:
+1) Did we reach the target (compare miss to tolerance)?
+2) What drove the score (reach target 75%, fuel 10%, budget 15%)?
+3) One sentence on what could improve the plan.
+
+Plain text only — no JSON."""
+
+
+def explain_mission_outcome(
+    scenario: Scenario,
+    plan: MissionPlan,
+    breakdown: ScoreBreakdown,
+    *,
+    model: str = "claude-sonnet-4-20250514",
+    api_key: str | None = None,
+) -> str:
+    """Claude Turn 2 — explain simulation score and outcome."""
+    client = Anthropic(api_key=api_key or os.environ["ANTHROPIC_API_KEY"])
+    message = client.messages.create(
+        model=model,
+        max_tokens=512,
+        system=(
+            "You are a Mesocosm mission analyst. Explain orbital simulation results clearly. "
+            "Use the exact numbers provided; never invent scores or miss distances."
+        ),
+        messages=[{"role": "user", "content": _build_outcome_prompt(scenario, plan, breakdown)}],
+    )
+    return message.content[0].text.strip()
 
 
 def plan_mission_with_retry(scenario: Scenario, **kwargs: Any) -> tuple[MissionPlan, str]:
