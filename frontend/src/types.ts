@@ -95,9 +95,11 @@ export interface RunResult {
 }
 
 export interface PlannerConfig {
-  planner_mode: "claude" | "offline";
+  planner_mode: "mesocosm" | "offline";
   ai_available: boolean;
+  model?: string;
   score_source: string;
+  reasoning_source?: string;
 }
 
 export interface BenchmarkRow {

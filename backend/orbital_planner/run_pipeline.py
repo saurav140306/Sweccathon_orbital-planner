@@ -1,4 +1,4 @@
-"""Shared run pipeline: AI plan → physics score → outcome narrative."""
+"""Shared run pipeline: Mesocosm AI plan → physics score → Mesocosm AI outcome."""
 
 from __future__ import annotations
 
@@ -6,37 +6,32 @@ import asyncio
 import os
 from typing import Any, Literal
 
-from fastapi import HTTPException
-
+from orbital_planner.mesocosm_agent import (
+    explain_mission_outcome,
+    mesocosm_available,
+    plan_mission_with_retry,
+)
 from orbital_planner.reasoning import format_simulation_outcome
 from orbital_planner.reward import score_mission
 from orbital_planner.schemas import MissionPlan, Scenario, ScoreBreakdown
 from orbital_planner.transfer import build_coplanar_hohmann_plan
 from orbital_planner.vec3 import vec3_mag
 
-MOCK_BASELINE_NOTE = (
-    "Offline analytical baseline (Hohmann transfer — not Mesocosm AI).\n"
-    "Burns are computed from orbital mechanics; scores come from the physics simulation only.\n"
-    "Set ANTHROPIC_API_KEY in backend/.env for Claude Turn 1 planning."
-)
-
-PlannerMode = Literal["claude", "mock"]
-AI_PLAN_TIMEOUT_S = 90.0
-AI_OUTCOME_TIMEOUT_S = 45.0
-
-MOCK_BASELINE_NOTE = (
-    "Offline analytical baseline (Hohmann transfer — not Mesocosm AI).\n"
-    "Burns are computed from orbital mechanics; scores come from the physics simulation only.\n"
-    "Set ANTHROPIC_API_KEY in backend/.env for Claude Turn 1 planning."
-)
-
-PlannerMode = Literal["claude", "mock"]
+PlannerMode = Literal["mesocosm", "mock"]
+AI_PLAN_TIMEOUT_S = 120.0
+AI_OUTCOME_TIMEOUT_S = 90.0
 
 
 def planner_mode(use_mock: bool) -> PlannerMode:
-    if use_mock or not os.environ.get("ANTHROPIC_API_KEY"):
+    if use_mock:
         return "mock"
-    return "claude"
+    return "mesocosm"
+
+
+def mesocosm_ready() -> bool:
+    if os.environ.get("MESOCOSM_FORCE_AVAILABLE", "").lower() in ("1", "true", "yes"):
+        return True
+    return mesocosm_available()
 
 
 async def plan_for_scenario(scenario: Scenario, *, use_mock: bool) -> tuple[MissionPlan, str, PlannerMode]:
@@ -53,49 +48,25 @@ async def plan_for_scenario(scenario: Scenario, *, use_mock: bool) -> tuple[Miss
         burns_txt = ", ".join(
             f"t={b.time_s:.0f}s Δv={vec3_mag(b.dv):.2f} km/s" for b in plan.burns
         ) or "none"
-        reasoning = f"{MOCK_BASELINE_NOTE}\n\nBurn schedule: {burns_txt}."
-        return MissionPlan(burns=plan.burns, reasoning=reasoning), reasoning, mode
-
-    try:
-        plan, raw = await asyncio.wait_for(
-            asyncio.to_thread(_plan_with_claude, scenario),
-            timeout=AI_PLAN_TIMEOUT_S,
-        )
-        reasoning = plan.reasoning or raw or ""
-        return plan, reasoning, mode
-    except (asyncio.TimeoutError, Exception):
-        plan = build_coplanar_hohmann_plan(
-            scenario.spacecraft.position,
-            scenario.spacecraft.velocity,
-            scenario.target.position,
-            time_limit_s=scenario.time_limit_s,
-            target=scenario.target,
-            scenario=scenario,
-        )
-        burns_txt = ", ".join(
-            f"t={b.time_s:.0f}s Δv={vec3_mag(b.dv):.2f} km/s" for b in plan.burns
-        ) or "none"
         reasoning = (
-            "Mesocosm AI planner unavailable — using analytical fallback.\n"
+            "Offline analytical baseline (use_mock=true).\n"
             f"Burn schedule: {burns_txt}."
         )
-        return MissionPlan(burns=plan.burns, reasoning=reasoning), reasoning, "mock"
+        return MissionPlan(burns=plan.burns, reasoning=reasoning), reasoning, mode
 
+    if not mesocosm_ready():
+        raise RuntimeError(
+            "Mesocosm AI is not reachable. Start Ollama (ollama serve) and pull a model "
+            f"(ollama pull {os.environ.get('MESOCOSM_MODEL', 'llama3.2').split('/')[-1]}), "
+            "or set MESOCOSM_API_BASE to your OpenAI-compatible endpoint."
+        )
 
-def _plan_with_claude(scenario: Scenario) -> tuple[MissionPlan, str]:
-    from orbital_planner.agent import plan_mission_with_retry
-
-    return plan_mission_with_retry(scenario)
-
-
-def _explain_with_claude(
-    scenario: Scenario,
-    plan: MissionPlan,
-    breakdown: ScoreBreakdown,
-) -> str:
-    from orbital_planner.agent import explain_mission_outcome
-
-    return explain_mission_outcome(scenario, plan, breakdown)
+    plan, raw = await asyncio.wait_for(
+        asyncio.to_thread(plan_mission_with_retry, scenario),
+        timeout=AI_PLAN_TIMEOUT_S,
+    )
+    reasoning = plan.reasoning or raw or ""
+    return plan, reasoning, mode
 
 
 async def score_narrative_for_run(
@@ -104,20 +75,17 @@ async def score_narrative_for_run(
     breakdown: ScoreBreakdown,
     *,
     mode: PlannerMode,
-    ai_summary: bool = True,
 ) -> str:
-    computed = format_simulation_outcome(scenario, breakdown)
-    if mode == "mock" or not ai_summary:
-        return computed
+    if mode == "mock":
+        return format_simulation_outcome(scenario, breakdown)
 
     try:
-        ai_text = await asyncio.wait_for(
-            asyncio.to_thread(_explain_with_claude, scenario, plan, breakdown),
+        return await asyncio.wait_for(
+            asyncio.to_thread(explain_mission_outcome, scenario, plan, breakdown),
             timeout=AI_OUTCOME_TIMEOUT_S,
         )
-        return f"{computed}\n\nAgent summary:\n{ai_text}"
     except Exception:
-        return computed
+        return format_simulation_outcome(scenario, breakdown)
 
 
 def score_breakdown(scenario: Scenario, plan: MissionPlan) -> ScoreBreakdown:

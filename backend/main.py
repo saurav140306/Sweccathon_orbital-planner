@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from orbital_planner.calculations import build_calculation_snapshot
+from orbital_planner.mesocosm_agent import mesocosm_model_name, mesocosm_ready
 from orbital_planner.run_pipeline import (
     plan_for_scenario,
     planner_mode,
@@ -65,11 +66,13 @@ class RunResponse(BaseModel):
 
 @app.get("/api/config")
 def get_config() -> dict[str, Any]:
-    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    ready = mesocosm_ready()
     return {
-        "planner_mode": "claude" if has_key else "offline",
-        "ai_available": has_key,
-        "score_source": "physics_simulation",
+        "planner_mode": "mesocosm" if ready else "offline",
+        "ai_available": ready,
+        "model": mesocosm_model_name(),
+        "score_source": "mesocosm_physics_simulation",
+        "reasoning_source": "mesocosm_ai",
     }
 
 
@@ -138,7 +141,7 @@ async def run_mission(body: RunRequest) -> RunResponse:
         score=score_payload(breakdown),
         score_narrative=narrative,
         planner_mode=mode,
-        raw_response=reasoning if mode == "claude" else None,
+        raw_response=reasoning if mode == "mesocosm" else None,
     )
 
 
@@ -169,20 +172,14 @@ async def run_mission_stream(body: RunRequest) -> StreamingResponse:
             else:
                 plan, reasoning, mode = plan_task.result()
 
-            chunk = 14 if mode == "claude" else 12
+            chunk = 14 if mode == "mesocosm" else 12
             for i in range(0, len(reasoning), chunk):
                 yield _sse("reasoning", {"text": reasoning[i : i + chunk]})
-                await asyncio.sleep(0.018 if mode == "claude" else 0.02)
+                await asyncio.sleep(0.018 if mode == "mesocosm" else 0.02)
 
             yield _sse("status", {"phase": "scoring"})
             breakdown = await asyncio.to_thread(score_breakdown, scenario, plan)
-            narrative = await score_narrative_for_run(
-                scenario,
-                plan,
-                breakdown,
-                mode=mode,
-                ai_summary=False,
-            )
+            narrative = await score_narrative_for_run(scenario, plan, breakdown, mode=mode)
 
             yield _sse("status", {"phase": "outcome"})
             for i in range(0, len(narrative), chunk):
@@ -197,7 +194,7 @@ async def run_mission_stream(body: RunRequest) -> StreamingResponse:
                     "score": score_payload(breakdown),
                     "score_narrative": narrative,
                     "planner_mode": mode,
-                    "raw_response": reasoning if mode == "claude" else None,
+                    "raw_response": reasoning if mode == "mesocosm" else None,
                 },
             )
         except asyncio.TimeoutError:
