@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from orbital_planner.calculations import build_calculation_snapshot
-from orbital_planner.mesocosm_agent import mesocosm_model_name, mesocosm_ready
+from orbital_planner.mesocosm_agent import mesocosm_available, mesocosm_model_name
 from orbital_planner.run_pipeline import (
     plan_for_scenario,
     planner_mode,
@@ -66,7 +66,7 @@ class RunResponse(BaseModel):
 
 @app.get("/api/config")
 def get_config() -> dict[str, Any]:
-    ready = mesocosm_ready()
+    ready = mesocosm_available()
     return {
         "planner_mode": "mesocosm" if ready else "offline",
         "ai_available": ready,
