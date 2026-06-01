@@ -190,7 +190,17 @@
         globalThis.__ORBIT_CATALOG = await catRes.json();
       }
     } catch (err) {
-      console.warn("orbit-catalog load failed", err);
+      console.warn("orbit-catalog fetch failed", err);
+    }
+    if (!globalThis.__ORBIT_CATALOG) {
+      const embedded = document.getElementById("orbit-catalog-json");
+      if (embedded) {
+        try {
+          globalThis.__ORBIT_CATALOG = JSON.parse(embedded.textContent);
+        } catch (e) {
+          console.warn("orbit-catalog embedded parse failed", e);
+        }
+      }
     }
 
     try {

@@ -30,6 +30,10 @@ export interface TargetMotion {
 function targetElements(target: TargetSpec): OrbitElements3D | null {
   const declaredInc = target.inclination_rad ?? target.orbit_elements?.inclination_rad ?? 0;
   const declaredRaan = target.raan_rad ?? target.orbit_elements?.raan_rad ?? 0;
+  const pos = toVec3(target.position);
+  const vel = target.velocity ? toVec3(target.velocity) : null;
+  const has3dState =
+    Math.abs(pos[2]) > 1e-3 || (vel != null && Math.abs(vel[2]) > 1e-4);
 
   if (target.orbit_elements) {
     const o = target.orbit_elements;
@@ -44,20 +48,8 @@ function targetElements(target: TargetSpec): OrbitElements3D | null {
     };
   }
 
-  if (target.semi_major_axis_km != null) {
-    const a = target.semi_major_axis_km;
-    const e = target.eccentricity ?? 0;
-    const argp = target.argument_of_periapsis_rad ?? 0;
-    const [x, y] = target.position;
-    const nu0 = target.true_anomaly_at_t0_rad ?? Math.atan2(y, x) - argp;
-    return elementsFromElements2d(a, e, argp, nu0, {
-      inclination_rad: declaredInc,
-      raan_rad: declaredRaan,
-    });
-  }
-
-  if (target.velocity) {
-    const el = elementsFromState(target.position, target.velocity);
+  if (vel && has3dState) {
+    const el = elementsFromState(pos, vel);
     if (declaredInc > 1e-4 && el.inclination_rad < 1e-4) {
       return elementsFromElements2d(
         el.semi_major_axis_km,
@@ -68,6 +60,21 @@ function targetElements(target: TargetSpec): OrbitElements3D | null {
       );
     }
     return el;
+  }
+
+  if (target.semi_major_axis_km != null) {
+    const a = target.semi_major_axis_km;
+    const e = target.eccentricity ?? 0;
+    const argp = target.argument_of_periapsis_rad ?? 0;
+    const nu0 = target.true_anomaly_at_t0_rad ?? Math.atan2(pos[1], pos[0]) - argp;
+    return elementsFromElements2d(a, e, argp, nu0, {
+      inclination_rad: declaredInc,
+      raan_rad: declaredRaan,
+    });
+  }
+
+  if (vel) {
+    return elementsFromState(pos, vel);
   }
 
   return null;

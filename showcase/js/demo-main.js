@@ -34,9 +34,15 @@ export async function startDemo({ data, scenarios }) {
     document.getElementById("scrub").value = String(scrubT);
 
     document.getElementById("scoreVal").textContent = info.score ?? "—";
+    const tgtInc = scenario.target?.inclination_rad ?? 0;
+    const incLine =
+      tgtInc > 1e-4
+        ? `<div><strong>Target i</strong> ${((tgtInc * 180) / Math.PI).toFixed(0)}°</div>`
+        : "";
     document.getElementById("metrics").innerHTML = `
       <div><strong>Scenario</strong> ${scenario.name}</div>
       <div><strong>Tier</strong> ${scenario.tier || "—"}</div>
+      ${incLine}
       <div><strong>Reward</strong> ${Number(t.reward).toFixed(3)}</div>
       <div><strong>Miss</strong> ${info.miss_km ?? "—"} km</div>
       <div><strong>Fuel</strong> ${info.fuel_used ?? "—"} km/s</div>

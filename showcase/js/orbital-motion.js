@@ -12,6 +12,10 @@ const MU = 398600;
 export function targetElements(target) {
   const declaredInc = target.inclination_rad ?? target.orbit_elements?.inclination_rad ?? 0;
   const declaredRaan = target.raan_rad ?? target.orbit_elements?.raan_rad ?? 0;
+  const pos = toVec3(target.position);
+  const vel = target.velocity ? toVec3(target.velocity) : null;
+  const has3dState =
+    Math.abs(pos[2]) > 1e-3 || (vel != null && Math.abs(vel[2]) > 1e-4);
 
   if (target.orbit_elements) {
     const o = target.orbit_elements;
@@ -26,31 +30,34 @@ export function targetElements(target) {
     };
   }
 
+  // Prefer osculating state when catalog/replay provides 3D position+velocity.
+  if (vel && has3dState) {
+    const el = elementsFromState(pos, vel);
+    if (declaredInc > 1e-4 && el.inclination_rad < 1e-4) {
+      return elementsFromElements2d(
+        el.semi_major_axis_km,
+        el.eccentricity,
+        el.argument_of_periapsis_rad,
+        el.true_anomaly_at_t0_rad,
+        { inclination_rad: declaredInc, raan_rad: declaredRaan },
+      );
+    }
+    return el;
+  }
+
   if (target.semi_major_axis_km != null) {
     const a = target.semi_major_axis_km;
     const e = target.eccentricity ?? 0;
     const argp = target.argument_of_periapsis_rad ?? 0;
-    const [x, y] = toVec3(target.position);
-    const nu0 = target.true_anomaly_at_t0_rad ?? Math.atan2(y, x) - argp;
+    const nu0 = target.true_anomaly_at_t0_rad ?? Math.atan2(pos[1], pos[0]) - argp;
     return elementsFromElements2d(a, e, argp, nu0, {
       inclination_rad: declaredInc,
       raan_rad: declaredRaan,
     });
   }
 
-  if (target.velocity) {
-    const el = elementsFromState(target.position, target.velocity);
-    if (declaredInc > 1e-4 && el.inclination_rad < 1e-4) {
-      const a = el.semi_major_axis_km;
-      const e = el.eccentricity;
-      const argp = el.argument_of_periapsis_rad;
-      const nu0 = el.true_anomaly_at_t0_rad;
-      return elementsFromElements2d(a, e, argp, nu0, {
-        inclination_rad: declaredInc,
-        raan_rad: declaredRaan,
-      });
-    }
-    return el;
+  if (vel) {
+    return elementsFromState(pos, vel);
   }
 
   return null;
