@@ -4,6 +4,14 @@ Plan impulsive burns to rendezvous with a **moving satellite or moon** in 2D Ear
 
 **Gallery:** https://saurav140306.github.io/Sweccathon_orbital-planner/
 
+### One-time GitHub Pages setup (repo owner)
+
+1. Open **Settings → Pages** on https://github.com/saurav140306/Sweccathon_orbital-planner
+2. Under **Build and deployment**, set **Source** to **GitHub Actions**
+3. Re-run the deploy workflow: `gh workflow run "Deploy showcase to GitHub Pages"`
+
+Pushes to `main` that touch `showcase/` auto-deploy via `.github/workflows/pages.yml`.
+
 ## Repo layout (Mesocosm pipeline)
 
 All sandbox entrypoints at the **repository root** (platform clones the repo and runs `adapter.py` from root):
