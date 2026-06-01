@@ -304,7 +304,14 @@ function closestApproach(score) {
   };
 }
 
-export { MAX_ANIM_WALL_S, chaserCoastRing, targetOrbitRing };
+export {
+  MAX_ANIM_WALL_S,
+  EARTH_R,
+  chaserCoastRing,
+  targetOrbitRing,
+  closestApproach,
+  pointAtTraj,
+};
 
 export class ReplayViewport3D {
   constructor(mountEl) {

@@ -275,8 +275,14 @@
     }
 
     async function loadScenarios() {
-      const res = await fetch("data/scenarios.json");
-      SCENARIOS = await res.json();
+      try {
+        const res = await fetch(`data/scenarios.json?ts=${Date.now()}`);
+        if (!res.ok) throw new Error(`scenarios.json ${res.status}`);
+        SCENARIOS = await res.json();
+      } catch (err) {
+        console.error("scenarios load failed", err);
+        SCENARIOS = { tiers: {}, all: [] };
+      }
       return SCENARIOS;
     }
 
@@ -410,10 +416,27 @@
       document.getElementById("btnPlay").textContent = "Play";
     }
 
+    function showInitError(msg) {
+      const rail = document.getElementById("episodeRail");
+      rail.innerHTML = `<p class="tier-label" style="color:#e8a070">${msg}</p>`;
+      document.getElementById("runHud").textContent = "Failed to load demo data";
+    }
+
     async function init() {
-      await Promise.all([loadReplay(), loadScenarios()]);
+      try {
+        await Promise.all([loadReplay(), loadScenarios()]);
+      } catch (err) {
+        console.error(err);
+        showInitError("Could not load replay. Hard-refresh or check console.");
+        return;
+      }
       const rail = document.getElementById("episodeRail");
       rail.innerHTML = "";
+
+      if (!SCENARIOS?.tiers || !DATA?.episodes?.length) {
+        showInitError("Missing scenarios or replay data.");
+        return;
+      }
 
       const tierOrder = ["easy", "medium", "hard", "expert"];
       let firstId = null;
@@ -448,9 +471,9 @@
 
       const nEp = DATA.episodes?.length ?? 0;
       const model = DATA.run?.config?.agent_config?.model ?? "—";
-      const ms = DATA.run?.scores?.mission_score;
+      const ms = DATA.run?.scores?.mission_score ?? DATA.run?.scores?.mean_reward;
       document.getElementById("runHud").textContent =
-        `${nEp} episodes · ${model}` + (ms != null ? ` · score ${ms.toFixed(1)}` : "");
+        `${nEp} episodes · ${model}` + (ms != null ? ` · score ${Number(ms).toFixed(1)}` : "");
     }
 
     viewport.onScrub = (t) => {
@@ -506,7 +529,10 @@
       if (e.code === "ArrowRight") document.getElementById("btnNext").click();
     });
 
-    init();
+    init().catch((err) => {
+      console.error(err);
+      showInitError(err?.message || "Init failed");
+    });
   </script>
 </body>
 </html>
