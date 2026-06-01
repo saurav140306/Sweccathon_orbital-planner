@@ -298,9 +298,17 @@
       );
     }
 
+    function scenarioOrderIds() {
+      return (SCENARIOS?.all || []).map((s) => s.id);
+    }
+
     function findEpisodeForScenario(scenarioId) {
+      const order = scenarioOrderIds();
+      const wantIdx = order.indexOf(scenarioId);
+
       for (const ep of DATA.episodes || []) {
         if (scenarioIdFromEpisode(ep) === scenarioId) return ep.id;
+        if (ep?.terminal_info?.scenario_id === scenarioId) return ep.id;
       }
       for (const [eid, tlist] of Object.entries(DATA.replay || {})) {
         const t = tlist[0];
@@ -309,6 +317,12 @@
           t?.observation?.scenario_id ||
           parseInfo(t?.info)?.scenario_id;
         if (sid === scenarioId) return eid;
+      }
+      if (wantIdx >= 0) {
+        for (const ep of DATA.episodes || []) {
+          const seed = ep?.seed;
+          if (seed != null && Number(seed) % order.length === wantIdx) return ep.id;
+        }
       }
       return null;
     }

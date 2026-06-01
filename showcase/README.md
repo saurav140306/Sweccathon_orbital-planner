@@ -12,6 +12,17 @@ Build a marketing or demo UI **in this repository** that replays a real bench ru
 3. Export the run (after it completes):
    ```bash
    mesocosm run export RUN_ID -o showcase/data/replay.json
+   py -3.12 showcase/scripts/build_local_replay.py  # only if you need a placeholder; prefer export
+   ```
+
+   Regenerate the `file://` fallback after any `replay.json` change:
+   ```bash
+   py -3.12 -c "import json; from pathlib import Path; p=json.loads(Path('showcase/data/replay.json').read_text()); Path('showcase/data/replay.js').write_text('window.REPLAY = '+json.dumps(p)+';\\n')"
+   ```
+
+   For a **local** demo with all 14 scenarios (Hohmann baseline) before a gallery export finishes:
+   ```bash
+   py -3.12 showcase/scripts/build_local_replay.py
    ```
 4. Point your frontend at `replay.json`. Each turn includes:
    - `observation` — env state for your UI
