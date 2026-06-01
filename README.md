@@ -7,9 +7,13 @@
 ## Monorepo
 
 ```
-backend/          FastAPI · 3D RK4 physics · Mesocosm AI agent · scoring
-frontend/         React · Vite · Three.js viewport · calculations panel
-orbital-planner/  Mesocosm bench package (env.py, adapter.py, showcase/)
+backend/              FastAPI · 3D RK4 physics · Mesocosm AI agent · scoring
+frontend/             React · Vite · Three.js viewport · calculations panel
+env.py, adapter.py    Mesocosm sandbox entrypoints (repo root)
+benchanything.json    Mesocosm manifest (repo root)
+showcase/             GitHub Pages gallery replay
+orbital_planner/      Mesocosm env implementation package
+test_env.py           Local determinism + policy discrimination tests
 ```
 
 ## How a mission run works
@@ -299,17 +303,20 @@ The **Orbital calculations** panel shows the same formulae as strings when a run
 
 ---
 
-## Mesocosm bench package
+## Mesocosm bench package (repo root)
 
-The `orbital-planner/` folder is the [Mesocosm](https://mesocosm.swecc.org) environment for platform benchmarking (separate from the local web UI).
+Mesocosm sandbox files live at the **repository root** (platform clones the repo and runs `adapter.py` from root). See [MESOCOSM_README.md](MESOCOSM_README.md) for submit/run/export steps.
 
 ```powershell
-cd orbital-planner
+pip install swecc-mesocosm
+pip install -r requirements.txt
+py -3.13 -m pytest test_env.py -q
 mesocosm validate benchanything.json
 python adapter.py
 ```
 
-Platform runs use the model you choose in `mesocosm run create` (e.g. Gemini on SWECC). Local dev uses Ollama via `mesocosm run local`. Showcase replay: `orbital-planner/showcase/index.html`.
+**Gallery (GitHub Pages):** https://saurav140306.github.io/Sweccathon_orbital-planner/  
+Local replay: `showcase/index.html` (uses `showcase/data/replay.js` for `file://`).
 
 ---
 
