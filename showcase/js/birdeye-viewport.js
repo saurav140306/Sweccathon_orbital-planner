@@ -1,14 +1,8 @@
 /**
  * Equatorial bird's-eye canvas (port of OrbitalBirdEye.tsx).
  */
-import {
-  EARTH_R,
-  chaserCoastRing,
-  closestApproach,
-  pointAtTraj,
-  targetOrbitRing,
-  turnToMission,
-} from "./replay-viewport.js";
+import { EARTH_R, closestApproach, pointAtTraj, turnToMission } from "./replay-viewport.js";
+import { chaserCoastPath, getTargetMotion, targetOrbitPath } from "./orbital-motion.js";
 
 const EARTH_SPIN_RAD_S = (2 * Math.PI) / 86164;
 
@@ -138,12 +132,14 @@ export class BirdEyeViewport {
     canvas.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const chaserRing = chaserCoastRing(this.scenario);
-    const targetRing = targetOrbitRing(this.scenario);
+    const motion = getTargetMotion(this.scenario.target);
+    const chaserRing = chaserCoastPath(this.scenario);
+    const targetRing = targetOrbitPath(this.scenario.target);
     const maxR = Math.max(
       14000,
       ...chaserRing.map((p) => Math.hypot(p[0], p[1])),
       ...targetRing.map((p) => Math.hypot(p[0], p[1])),
+      motion.orbit_radius_km * 1.12,
       12000,
     );
     const scale = (Math.min(w, h) * 0.44) / maxR;

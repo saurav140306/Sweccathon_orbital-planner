@@ -2,6 +2,8 @@
  * 3D orbital viewport for Mesocosm replay (vanilla port of OrbitalViewport3D).
  */
 import * as THREE from "three";
+import { eciToScene, toVec3, vecMag } from "./kepler3d.js";
+import { chaserCoastPath, targetOrbitPath, targetPointAtTime } from "./orbital-motion.js";
 
 const EARTH_R = 6371;
 const MOON_R_KM = 1737;
@@ -13,11 +15,8 @@ function simRateForWallDuration(simDurationS, wallDurationS = MAX_ANIM_WALL_S) {
 }
 
 function toThree(pos, scale) {
-  return new THREE.Vector3(pos[0] * scale, pos[2] * scale, -pos[1] * scale);
-}
-
-function vecMag(v) {
-  return Math.hypot(v[0], v[1], v[2] ?? 0);
+  const [x, y, z] = eciToScene(toVec3(pos));
+  return new THREE.Vector3(x * scale, y * scale, z * scale);
 }
 
 function parseTraj(val) {
@@ -33,12 +32,14 @@ function parseTraj(val) {
   return [];
 }
 
+function trajPointToVec3(p) {
+  if (p.position) return toVec3(p.position);
+  return [p.x ?? 0, p.y ?? 0, p.z ?? 0];
+}
+
 function pointAtTraj(traj, t) {
   if (!traj.length) return [0, 0, 0];
-  const pts = traj.map((p) => ({
-    t_s: p.t_s,
-    position: p.position ?? [p.x, p.y, 0],
-  }));
+  const pts = traj.map((p) => ({ t_s: p.t_s, position: trajPointToVec3(p) }));
   if (t <= pts[0].t_s) return pts[0].position;
   for (let i = 1; i < pts.length; i++) {
     if (pts[i].t_s >= t) {
@@ -48,7 +49,7 @@ function pointAtTraj(traj, t) {
       return [
         a.position[0] + u * (b.position[0] - a.position[0]),
         a.position[1] + u * (b.position[1] - a.position[1]),
-        0,
+        a.position[2] + u * (b.position[2] - a.position[2]),
       ];
     }
   }
@@ -80,29 +81,35 @@ export function turnToMission(turn) {
     /* ignore */
   }
 
+  const tgtObs = obs.target || {};
   const scenario = {
     id: obs.scenario_id || info.scenario_id || "mission",
     name: obs.name || info.scenario_name || "Mission",
     tier: obs.tier || info.tier || "",
     time_limit_s: obs.time_limit_s ?? 7200,
     spacecraft: {
-      position: obs.spacecraft?.position_km || [7000, 0],
-      velocity: obs.spacecraft?.velocity_km_s || [0, 7.5],
+      position: toVec3(obs.spacecraft?.position_km || [7000, 0, 0]),
+      velocity: toVec3(obs.spacecraft?.velocity_km_s || [0, 7.5, 0]),
     },
     target: {
-      kind: obs.target?.kind || "satellite",
-      position: obs.target?.position_km || [0, 10000],
-      velocity: obs.target?.velocity_km_s,
-      tolerance_km: obs.target?.tolerance_km ?? 50,
-      semi_major_axis_km: obs.target?.semi_major_axis_km,
-      eccentricity: obs.target?.eccentricity ?? 0,
-      orbit_type: obs.target?.orbit_type || "circular",
-      spin_rad_s: 0.12,
+      kind: tgtObs.kind || "satellite",
+      position: toVec3(tgtObs.position_km || [0, 10000, 0]),
+      velocity: tgtObs.velocity_km_s ? toVec3(tgtObs.velocity_km_s) : undefined,
+      tolerance_km: tgtObs.tolerance_km ?? 50,
+      semi_major_axis_km: tgtObs.semi_major_axis_km,
+      eccentricity: tgtObs.eccentricity ?? 0,
+      argument_of_periapsis_rad: tgtObs.argument_of_periapsis_rad ?? 0,
+      inclination_rad: tgtObs.inclination_rad ?? info.inclination_rad ?? 0,
+      raan_rad: tgtObs.raan_rad ?? info.raan_rad ?? 0,
+      true_anomaly_at_t0_rad: tgtObs.true_anomaly_at_t0_rad,
+      orbit_type: tgtObs.orbit_type || "circular",
+      spin_rad_s: tgtObs.spin_rad_s ?? 0.12,
+      orbit_elements: tgtObs.orbit_elements,
     },
   };
 
-  const trajectory = chaserRaw.map((p) => ({ t_s: p.t_s, position: [p.x, p.y, 0] }));
-  const target_trajectory = targetRaw.map((p) => ({ t_s: p.t_s, position: [p.x, p.y, 0] }));
+  const trajectory = chaserRaw.map((p) => ({ t_s: p.t_s, position: trajPointToVec3(p) }));
+  const target_trajectory = targetRaw.map((p) => ({ t_s: p.t_s, position: trajPointToVec3(p) }));
 
   const score = {
     trajectory,
@@ -216,38 +223,6 @@ function makeChaserBody() {
   return group;
 }
 
-function sampleCircularOrbit(radiusKm, samples = 91, angle0 = 0) {
-  const pts = [];
-  for (let i = 0; i < samples; i++) {
-    const theta = angle0 + (2 * Math.PI * i) / samples;
-    pts.push([radiusKm * Math.cos(theta), radiusKm * Math.sin(theta), 0]);
-  }
-  return pts;
-}
-
-/** Keplerian ring for guide orbits (closed). Open transfer paths must not use closed curves. */
-function targetOrbitRing(scenario) {
-  const tg = scenario.target;
-  const a = tg.semi_major_axis_km || Math.hypot(tg.position[0], tg.position[1]) || 10000;
-  const e = tg.eccentricity ?? 0;
-  if (e < 1e-4) {
-    return sampleCircularOrbit(a, 91, Math.atan2(tg.position[1], tg.position[0]));
-  }
-  const pts = [];
-  for (let i = 0; i <= 90; i++) {
-    const nu = (2 * Math.PI * i) / 90;
-    const r = (a * (1 - e * e)) / (1 + e * Math.cos(nu));
-    pts.push([r * Math.cos(nu), r * Math.sin(nu), 0]);
-  }
-  return pts;
-}
-
-function chaserCoastRing(scenario) {
-  const [x, y] = scenario.spacecraft.position;
-  const r = Math.max(Math.hypot(x, y), EARTH_R + 100);
-  return sampleCircularOrbit(r, 91, Math.atan2(y, x));
-}
-
 function makeOrbitPath(points, color, scale, tubeRadius, closed = false) {
   const pts = points.map((p) => toThree(p, scale));
   if (pts.length < 2) return new THREE.Group();
@@ -307,8 +282,8 @@ function closestApproach(score) {
 export {
   MAX_ANIM_WALL_S,
   EARTH_R,
-  chaserCoastRing,
-  targetOrbitRing,
+  chaserCoastPath,
+  targetOrbitPath,
   closestApproach,
   pointAtTraj,
 };
@@ -441,8 +416,8 @@ export class ReplayViewport3D {
 
     const kind = this.scenario.target.kind || "satellite";
     const targetColor = kind === "moon" ? 0xc8c8be : 0x5dcaa5;
-    scene.add(makeOrbitPath(targetOrbitRing(this.scenario), targetColor, scale, tubeR * 0.85, true));
-    scene.add(makeOrbitPath(chaserCoastRing(this.scenario), 0xf5f0e6, scale, tubeR * 0.55, true));
+    scene.add(makeOrbitPath(targetOrbitPath(this.scenario.target), targetColor, scale, tubeR * 0.85, true));
+    scene.add(makeOrbitPath(chaserCoastPath(this.scenario), 0xf5f0e6, scale, tubeR * 0.55, true));
 
     this.targetTrailLine = new THREE.Line(
       new THREE.BufferGeometry(),

@@ -1,28 +1,18 @@
-/** 3D Kepler propagation (matches backend kepler3d.py). */
+/** 3D Kepler propagation (matches backend / frontend kepler3d). */
 
 const MU = 398600;
 
-export interface OrbitElements3D {
-  semi_major_axis_km: number;
-  eccentricity: number;
-  inclination_rad: number;
-  raan_rad: number;
-  argument_of_periapsis_rad: number;
-  true_anomaly_at_t0_rad: number;
-  mean_motion_rad_s: number;
+export function toVec3(v) {
+  if (!v) return [0, 0, 0];
+  if (Array.isArray(v)) return v.length === 3 ? v : [v[0], v[1], 0];
+  return [v.x ?? 0, v.y ?? 0, v.z ?? 0];
 }
 
-export type Vec3 = [number, number, number];
-
-export function toVec3(v: [number, number] | [number, number, number]): Vec3 {
-  return v.length === 3 ? v : [v[0], v[1], 0];
-}
-
-function meanMotion(a: number): number {
+function meanMotion(a) {
   return Math.sqrt(MU / Math.max(a, 1) ** 3);
 }
 
-function rotZ(a: number): number[][] {
+function rotZ(a) {
   const c = Math.cos(a);
   const s = Math.sin(a);
   return [
@@ -32,7 +22,7 @@ function rotZ(a: number): number[][] {
   ];
 }
 
-function rotX(a: number): number[][] {
+function rotX(a) {
   const c = Math.cos(a);
   const s = Math.sin(a);
   return [
@@ -42,7 +32,7 @@ function rotX(a: number): number[][] {
   ];
 }
 
-function matMul(a: number[][], b: number[][]): number[][] {
+function matMul(a, b) {
   const out = [
     [0, 0, 0],
     [0, 0, 0],
@@ -56,7 +46,7 @@ function matMul(a: number[][], b: number[][]): number[][] {
   return out;
 }
 
-function matVec(m: number[][], v: Vec3): Vec3 {
+function matVec(m, v) {
   return [
     m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
     m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
@@ -64,12 +54,12 @@ function matVec(m: number[][], v: Vec3): Vec3 {
   ];
 }
 
-function perifocalToInertial(v: Vec3, raan: number, inc: number, argp: number): Vec3 {
+function perifocalToInertial(v, raan, inc, argp) {
   const r = matMul(rotZ(-raan), matMul(rotX(-inc), rotZ(-argp)));
   return matVec(r, v);
 }
 
-function solveKepler(M: number, e: number): number {
+function solveKepler(M, e) {
   const m = M % (2 * Math.PI);
   if (e < 1e-10) return m;
   let E = e < 0.8 ? m : Math.PI;
@@ -81,66 +71,55 @@ function solveKepler(M: number, e: number): number {
   return E;
 }
 
-function trueAnomalyFromMean(M: number, e: number): number {
+function trueAnomalyFromMean(M, e) {
   const E = solveKepler(M, e);
   const sinE = Math.sin(E);
   const cosE = Math.cos(E);
-  const denom = 1 - e * cosE;
+  const denom = 1 - e * Math.cos(E);
   return Math.atan2((Math.sqrt(1 - e * e) * sinE) / denom, (cosE - e) / denom);
 }
 
-function trueAnomalyToMean(nu: number, e: number): number {
+function trueAnomalyToMean(nu, e) {
   if (e < 1e-10) return nu;
   const tanHalf = Math.tan(nu / 2);
   const E = 2 * Math.atan2(Math.sqrt(1 + e) * tanHalf, Math.sqrt(1 - e));
   return E - e * Math.sin(E);
 }
 
-function stateFromElements(el: OrbitElements3D, nu: number): { pos: Vec3; vel: Vec3 } {
+function stateFromElements(el, nu) {
   const { semi_major_axis_km: a, eccentricity: e, argument_of_periapsis_rad: argp, inclination_rad: inc, raan_rad: raan } = el;
   const p = a * (1 - e * e);
   const r = p / (1 + e * Math.cos(nu));
   const sqrtMuP = Math.sqrt(MU / p);
   const vr = sqrtMuP * e * Math.sin(nu);
   const vtheta = sqrtMuP * (1 + e * Math.cos(nu));
-  const posP: Vec3 = [r * Math.cos(nu), r * Math.sin(nu), 0];
-  const velP: Vec3 = [
-    vr * Math.cos(nu) - vtheta * Math.sin(nu),
-    vr * Math.sin(nu) + vtheta * Math.cos(nu),
-    0,
-  ];
+  const posP = [r * Math.cos(nu), r * Math.sin(nu), 0];
+  const velP = [vr * Math.cos(nu) - vtheta * Math.sin(nu), vr * Math.sin(nu) + vtheta * Math.cos(nu), 0];
   return {
     pos: perifocalToInertial(posP, raan, inc, argp),
     vel: perifocalToInertial(velP, raan, inc, argp),
   };
 }
 
-/** Build 3D elements from semi-major axis, e, ω, ν₀ and optional inclination + RAAN. */
-export function elementsFromElements2d(
-  semiMajorKm: number,
-  eccentricity: number,
-  argp: number,
-  nu0: number,
-  opts: { inclination_rad?: number; raan_rad?: number } = {},
-): OrbitElements3D {
+export function elementsFromElements2d(semiMajorKm, eccentricity, argp, nu0, opts = {}) {
   const a = semiMajorKm;
   const e = eccentricity;
+  const inc = opts.inclination_rad ?? 0;
+  const raan = opts.raan_rad ?? 0;
   const n = meanMotion(a);
+  const h = Math.sqrt(MU * a * (1 - e * e));
   return {
     semi_major_axis_km: a,
     eccentricity: e,
-    inclination_rad: opts.inclination_rad ?? 0,
-    raan_rad: opts.raan_rad ?? 0,
+    inclination_rad: inc,
+    raan_rad: raan,
     argument_of_periapsis_rad: argp,
     true_anomaly_at_t0_rad: nu0,
     mean_motion_rad_s: n,
   };
 }
 
-export function elementsFromState(
-  position: [number, number] | [number, number, number],
-  velocity: [number, number] | [number, number, number],
-): OrbitElements3D {
+export function elementsFromState(position, velocity) {
   const [rx, ry, rz] = toVec3(position);
   const [vx, vy, vz] = toVec3(velocity);
   const r = Math.sqrt(rx * rx + ry * ry + rz * rz);
@@ -184,18 +163,15 @@ export function elementsFromState(
   };
 }
 
-export function propagateElements(
-  el: OrbitElements3D,
-  t_s: number,
-): { pos: Vec3; vel: Vec3 } {
+export function propagateElements(el, t_s) {
   const m0 = trueAnomalyToMean(el.true_anomaly_at_t0_rad, el.eccentricity);
   const m = m0 + el.mean_motion_rad_s * t_s;
   const nu = trueAnomalyFromMean(m, el.eccentricity);
   return stateFromElements(el, nu);
 }
 
-export function sampleOrbitPath(el: OrbitElements3D, n = 90): Vec3[] {
-  const pts: Vec3[] = [];
+export function sampleOrbitPath(el, n = 90) {
+  const pts = [];
   for (let i = 0; i <= n; i++) {
     const nu = -Math.PI + (2 * Math.PI * i) / n;
     pts.push(stateFromElements(el, nu).pos);
@@ -204,10 +180,10 @@ export function sampleOrbitPath(el: OrbitElements3D, n = 90): Vec3[] {
 }
 
 /** Map ECI (x,y,z) to Three.js Y-up scene coords. */
-export function eciToScene([x, y, z]: Vec3): Vec3 {
+export function eciToScene([x, y, z]) {
   return [x, z, -y];
 }
 
-export function vecMag(v: Vec3): number {
-  return Math.hypot(v[0], v[1], v[2]);
+export function vecMag(v) {
+  return Math.hypot(v[0], v[1], v[2] ?? 0);
 }

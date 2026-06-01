@@ -2,6 +2,7 @@ import type { Scenario, ScoreBreakdown, TargetSpec, TrajectoryPoint } from "./ty
 import {
   type OrbitElements3D,
   type Vec3,
+  elementsFromElements2d,
   elementsFromState,
   propagateElements,
   sampleOrbitPath,
@@ -27,20 +28,20 @@ export interface TargetMotion {
 }
 
 function targetElements(target: TargetSpec): OrbitElements3D | null {
-  if (target.velocity) {
-    return elementsFromState(target.position, target.velocity);
-  }
   if (target.orbit_elements) {
     const o = target.orbit_elements;
     return {
       semi_major_axis_km: o.semi_major_axis_km,
       eccentricity: o.eccentricity,
-      inclination_rad: o.inclination_rad ?? 0,
-      raan_rad: o.raan_rad ?? 0,
+      inclination_rad: o.inclination_rad ?? target.inclination_rad ?? 0,
+      raan_rad: o.raan_rad ?? target.raan_rad ?? 0,
       argument_of_periapsis_rad: o.argument_of_periapsis_rad,
       true_anomaly_at_t0_rad: o.true_anomaly_at_t0_rad,
       mean_motion_rad_s: o.mean_motion_rad_s,
     };
+  }
+  if (target.velocity) {
+    return elementsFromState(target.position, target.velocity);
   }
   if (target.semi_major_axis_km != null) {
     const a = target.semi_major_axis_km;
@@ -48,15 +49,10 @@ function targetElements(target: TargetSpec): OrbitElements3D | null {
     const argp = target.argument_of_periapsis_rad ?? 0;
     const [x, y] = target.position;
     const nu0 = target.true_anomaly_at_t0_rad ?? Math.atan2(y, x) - argp;
-    return {
-      semi_major_axis_km: a,
-      eccentricity: e,
+    return elementsFromElements2d(a, e, argp, nu0, {
       inclination_rad: target.inclination_rad ?? 0,
       raan_rad: target.raan_rad ?? 0,
-      argument_of_periapsis_rad: argp,
-      true_anomaly_at_t0_rad: nu0,
-      mean_motion_rad_s: Math.sqrt(MU / (a * a * a)),
-    };
+    });
   }
   return null;
 }
