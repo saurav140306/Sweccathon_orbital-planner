@@ -146,7 +146,7 @@
           <option value="2">2×</option>
           <option value="4">4×</option>
         </select>
-        <span id="turnLabel" class="hud">T 0/0</span>
+        <span id="turnLabel" class="hud">T 0/0 · 0s</span>
       </div>
     </section>
     <aside class="panel">
@@ -166,8 +166,10 @@
     let DATA = window.REPLAY;
     let epId = null;
     let turnIdx = 0;
+    let frameIdx = 0;
     let playing = false;
-    let playTimer = null;
+    let animId = null;
+    let animLastTs = 0;
 
     async function loadReplay() {
       if (DATA) return DATA;
@@ -199,52 +201,121 @@
 
     function turns() { return (DATA.replay && DATA.replay[epId]) || []; }
 
+    function currentTurn() {
+      const tlist = turns();
+      return tlist[turnIdx] || null;
+    }
+
+    function trajForTurn(t) {
+      const info = parseInfo(t?.info);
+      return {
+        chaser: parseTraj(info.chaser_traj_json),
+        target: parseTraj(info.target_traj_json),
+        info,
+      };
+    }
+
+    function maxFrames() {
+      const { chaser } = trajForTurn(currentTurn());
+      return Math.max(1, chaser.length);
+    }
+
+    function sampleAtTime(pts, t) {
+      if (!pts.length) return null;
+      if (t <= pts[0].t_s) return { ...pts[0] };
+      for (let i = 1; i < pts.length; i++) {
+        if (pts[i].t_s >= t) {
+          const a = pts[i - 1], b = pts[i];
+          const u = (t - a.t_s) / (b.t_s - a.t_s || 1);
+          return { t_s: t, x: a.x + u * (b.x - a.x), y: a.y + u * (b.y - a.y) };
+        }
+      }
+      return { ...pts[pts.length - 1] };
+    }
+
+    function stopPlay() {
+      playing = false;
+      if (animId) cancelAnimationFrame(animId);
+      animId = null;
+      document.getElementById("btnPlay").textContent = "Play";
+    }
+
+    function syncScrubRange() {
+      const scrub = document.getElementById("scrub");
+      const frames = maxFrames();
+      const tlist = turns();
+      if (tlist.length > 1) {
+        scrub.max = Math.max(0, tlist.length - 1);
+        scrub.value = turnIdx;
+      } else {
+        scrub.max = Math.max(0, frames - 1);
+        scrub.value = frameIdx;
+      }
+    }
+
     function setEpisode(id) {
       epId = id;
       turnIdx = 0;
-      playing = false;
-      clearInterval(playTimer);
+      frameIdx = 0;
+      stopPlay();
       document.querySelectorAll(".ep-btn").forEach(b => b.classList.toggle("active", b.dataset.id === id));
-      const scrub = document.getElementById("scrub");
-      scrub.max = Math.max(0, turns().length - 1);
-      scrub.value = 0;
+      syncScrubRange();
       renderTurn();
     }
 
-    function renderTurn() {
-      const tlist = turns();
-      const t = tlist[turnIdx];
+    function renderTurn(resetFrame) {
+      const t = currentTurn();
       if (!t) return;
-      const info = parseInfo(t.info);
-      document.getElementById("turnLabel").textContent = `Turn ${turnIdx + 1}/${tlist.length}`;
-      document.getElementById("scrub").value = turnIdx;
+      if (resetFrame) frameIdx = 0;
+      frameIdx = Math.max(0, Math.min(maxFrames() - 1, frameIdx));
+
+      const { chaser, target, info } = trajForTurn(t);
+      const tlist = turns();
+      const missionT = chaser[frameIdx]?.t_s ?? 0;
+      const tgtNow = sampleAtTime(target, missionT);
+
+      document.getElementById("turnLabel").textContent =
+        tlist.length > 1
+          ? `Turn ${turnIdx + 1}/${tlist.length} · t=${missionT.toFixed(0)}s`
+          : `Mission t=${missionT.toFixed(0)}s · ${frameIdx + 1}/${maxFrames()}`;
+      syncScrubRange();
       document.getElementById("scoreVal").textContent = info.score ?? "—";
       document.getElementById("metrics").innerHTML = `
         <div><strong>Reward</strong> ${Number(t.reward).toFixed(3)}</div>
         <div><strong>Miss</strong> ${info.miss_km ?? "—"} km</div>
         <div><strong>Fuel</strong> ${info.fuel_used ?? "—"} km/s</div>
+        <div><strong>Mission time</strong> ${missionT.toFixed(0)} s</div>
         <div><strong>Scenario</strong> ${info.scenario_name ?? info.scenario_id ?? "—"}</div>
       `;
       document.getElementById("reasoning").textContent =
         t.reasoning || info.agent_reasoning || "—";
       document.getElementById("action").textContent = typeof t.action === "string" ? t.action : JSON.stringify(t.action, null, 2);
-      drawOrbit(info, t.observation);
+      drawOrbit(chaser, target, tgtNow, t.observation, frameIdx, missionT);
     }
 
-    function drawOrbit(info, obs) {
+    function idxUpToTime(pts, t) {
+      let idx = 0;
+      for (let i = 0; i < pts.length; i++) {
+        if (pts[i].t_s <= t) idx = i;
+      }
+      return idx;
+    }
+
+    function drawOrbit(chaser, target, tgtNow, obs, frame, missionT) {
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
       const w = canvas.width, h = canvas.height;
       ctx.fillStyle = "#0c1510";
       ctx.fillRect(0, 0, w, h);
-      const chaser = parseTraj(info.chaser_traj_json);
-      const target = parseTraj(info.target_traj_json);
+
       const all = [...chaser, ...target];
+      if (!all.length) return;
+
       const maxR = Math.max(12000, ...all.map(p => Math.hypot(p.x, p.y)), EARTH_R * 2);
       const cx = w / 2, cy = h / 2, scale = (Math.min(w, h) * 0.42) / maxR;
       const toS = (x, y) => [cx + x * scale, cy - y * scale];
 
-      ctx.strokeStyle = "rgba(143,184,155,.15)";
+      ctx.strokeStyle = "rgba(143,184,155,.12)";
       for (const r of [8000, 10000, 12000]) {
         ctx.beginPath(); ctx.arc(cx, cy, r * scale, 0, Math.PI * 2); ctx.stroke();
       }
@@ -253,33 +324,127 @@
       ctx.fillStyle = eg;
       ctx.beginPath(); ctx.arc(cx, cy, EARTH_R * scale, 0, Math.PI * 2); ctx.fill();
 
-      function path(pts, color) {
+      function drawPath(pts, endIdx, color, alpha, width) {
         if (!pts.length) return;
-        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
-        const [x0, y0] = toS(pts[0].x, pts[0].y); ctx.moveTo(x0, y0);
-        for (let i = 1; i < pts.length; i++) {
-          const [x, y] = toS(pts[i].x, pts[i].y); ctx.lineTo(x, y);
+        const n = Math.min(endIdx + 1, pts.length);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        const [x0, y0] = toS(pts[0].x, pts[0].y);
+        ctx.moveTo(x0, y0);
+        for (let i = 1; i < n; i++) {
+          const [x, y] = toS(pts[i].x, pts[i].y);
+          ctx.lineTo(x, y);
         }
         ctx.stroke();
-        const last = pts[pts.length - 1];
-        const [sx, sy] = toS(last.x, last.y);
-        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
       }
-      path(target, "rgba(200,200,190,.7)");
-      path(chaser, "#5dcaa5");
 
-      if (obs && obs.target && obs.target.position_km) {
-        const [tx, ty] = obs.target.position_km;
-        const [sx, sy] = toS(tx, ty);
-        ctx.strokeStyle = "rgba(232,193,112,.5)";
-        ctx.beginPath(); ctx.arc(sx, sy, (obs.target.tolerance_km || 50) * scale, 0, Math.PI * 2); ctx.stroke();
+      function drawMarker(pt, color, radius, ring) {
+        if (!pt) return;
+        const [sx, sy] = toS(pt.x, pt.y);
+        if (ring) {
+          ctx.strokeStyle = ring;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(sx, sy, radius + 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f5f0e6";
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const tgtEnd = idxUpToTime(target, missionT);
+
+      drawPath(target, target.length - 1, "rgba(200,200,190,.35)", 0.35, 1);
+      drawPath(chaser, chaser.length - 1, "#5dcaa5", 0.25, 1);
+      drawPath(target, tgtEnd, "rgba(200,200,190,.85)", 1, 2);
+      drawPath(chaser, frame, "#5dcaa5", 1, 2.5);
+
+      const chNow = chaser[frame];
+      drawMarker(tgtNow || target[tgtEnd], "rgba(200,200,190,.95)", 7, "rgba(232,193,112,.6)");
+      drawMarker(chNow, "#5dcaa5", 8, "#e8c170");
+
+      if (frame === 0 && chaser.length > 1) {
+        const [bx, by] = toS(chaser[0].x, chaser[0].y);
+        ctx.strokeStyle = "rgba(232,193,112,.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx + 28, by - 18);
+        ctx.stroke();
+        ctx.fillStyle = "#e8c170";
+        ctx.font = "11px Source Sans 3, sans-serif";
+        ctx.fillText("Δv burn", bx + 32, by - 14);
+      }
+
+      if (obs?.target?.tolerance_km && tgtNow) {
+        const [sx, sy] = toS(tgtNow.x, tgtNow.y);
+        ctx.strokeStyle = "rgba(232,193,112,.35)";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(sx, sy, obs.target.tolerance_km * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      const sep = chNow && tgtNow ? Math.hypot(chNow.x - tgtNow.x, chNow.y - tgtNow.y) : null;
+      if (sep != null) {
+        ctx.fillStyle = "rgba(245,240,230,.7)";
+        ctx.font = "12px Source Sans 3, sans-serif";
+        ctx.fillText(`Separation ${sep.toFixed(0)} km`, 12, 22);
       }
     }
 
-    function step(delta) {
+    function stepFrame(delta) {
+      const max = maxFrames() - 1;
+      frameIdx = Math.max(0, Math.min(max, frameIdx + delta));
+      renderTurn(false);
+    }
+
+    function stepTurn(delta) {
       const max = turns().length - 1;
       turnIdx = Math.max(0, Math.min(max, turnIdx + delta));
-      renderTurn();
+      frameIdx = 0;
+      renderTurn(false);
+    }
+
+    function step(delta) {
+      if (turns().length > 1) stepTurn(delta);
+      else stepFrame(delta);
+    }
+
+    function animLoop(ts) {
+      if (!playing) return;
+      const spd = Number(document.getElementById("speed").value);
+      const interval = 45 / spd;
+      if (!animLastTs) animLastTs = ts;
+      if (ts - animLastTs >= interval) {
+        animLastTs = ts;
+        if (frameIdx < maxFrames() - 1) {
+          frameIdx++;
+          renderTurn(false);
+        } else {
+          stopPlay();
+          return;
+        }
+      }
+      animId = requestAnimationFrame(animLoop);
+    }
+
+    function startPlay() {
+      if (frameIdx >= maxFrames() - 1) frameIdx = 0;
+      playing = true;
+      animLastTs = 0;
+      document.getElementById("btnPlay").textContent = "Pause";
+      animId = requestAnimationFrame(animLoop);
     }
 
     async function init() {
@@ -303,24 +468,26 @@
     }
 
     document.getElementById("btnPlay").onclick = () => {
-      playing = !playing;
-      document.getElementById("btnPlay").textContent = playing ? "Pause" : "Play";
-      clearInterval(playTimer);
-      if (playing) {
-        const spd = () => Number(document.getElementById("speed").value);
-        playTimer = setInterval(() => {
-          if (turnIdx >= turns().length - 1) { playing = false; clearInterval(playTimer); document.getElementById("btnPlay").textContent = "Play"; return; }
-          step(1);
-        }, 800 / spd());
-      }
+      if (playing) stopPlay();
+      else startPlay();
     };
-    document.getElementById("btnPrev").onclick = () => step(-1);
-    document.getElementById("btnNext").onclick = () => step(1);
-    document.getElementById("scrub").oninput = (e) => { turnIdx = Number(e.target.value); renderTurn(); };
+    document.getElementById("btnPrev").onclick = () => { stopPlay(); step(-1); };
+    document.getElementById("btnNext").onclick = () => { stopPlay(); step(1); };
+    document.getElementById("scrub").oninput = (e) => {
+      stopPlay();
+      const v = Number(e.target.value);
+      if (turns().length > 1) {
+        turnIdx = v;
+        frameIdx = 0;
+      } else {
+        frameIdx = v;
+      }
+      renderTurn(false);
+    };
     document.addEventListener("keydown", (e) => {
       if (e.code === "Space") { e.preventDefault(); document.getElementById("btnPlay").click(); }
-      if (e.code === "ArrowLeft") step(-1);
-      if (e.code === "ArrowRight") step(1);
+      if (e.code === "ArrowLeft") { stopPlay(); step(-1); }
+      if (e.code === "ArrowRight") { stopPlay(); step(1); }
     });
     init();
   </script>
