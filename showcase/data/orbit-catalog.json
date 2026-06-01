@@ -1,0 +1,502 @@
+{
+  "raise-easy-01": {
+    "spacecraft": {
+      "position": [
+        4.163799117101001e-13,
+        6800.0,
+        0.0
+      ],
+      "velocity": [
+        -7.65621623642015,
+        4.688080353755966e-16,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        4.592425496802575e-13,
+        -7500.0,
+        0.0
+      ],
+      "velocity": [
+        7.290176038112294,
+        4.463945375147477e-16,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 80.0,
+      "semi_major_axis_km": 7500.0,
+      "eccentricity": 0.0,
+      "argument_of_periapsis_rad": -1.5707963267948966,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": -1.5707963267948966,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "station-easy-02": {
+    "spacecraft": {
+      "position": [
+        7000.0,
+        0.0,
+        0.0
+      ],
+      "velocity": [
+        0.0,
+        7.546049108166282,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        3600.000000000001,
+        -6235.3829072479575,
+        0.0
+      ],
+      "velocity": [
+        6.443666140741103,
+        3.7202523809249537,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 100.0,
+      "semi_major_axis_km": 7200.000000000001,
+      "eccentricity": 0.0,
+      "argument_of_periapsis_rad": -1.0471975511965976,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": -1.0471975511965976,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "intercept-01": {
+    "spacecraft": {
+      "position": [
+        4.586645163910599e-13,
+        -7490.56,
+        0.0
+      ],
+      "velocity": [
+        7.294768324472262,
+        0.8753721989366718,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        8168.272330243606,
+        4090.84810454799,
+        -3558.4694637572456
+      ],
+      "velocity": [
+        -2.303223442913455,
+        5.942370599248105,
+        -0.9149551481956341
+      ],
+      "kind": "moon",
+      "tolerance_km": 50.0,
+      "semi_major_axis_km": 9999.999999999996,
+      "eccentricity": 0.13999999999999943,
+      "argument_of_periapsis_rad": -0.7872245967958187,
+      "inclination_rad": 0.3839724354387524,
+      "raan_rad": 2.3038346126325147,
+      "true_anomaly_at_t0_rad": 1.5707963267948983,
+      "orbit_type": "elliptical",
+      "spin_rad_s": 0.06
+    }
+  },
+  "phase-medium-02": {
+    "spacecraft": {
+      "position": [
+        7128.052193506943,
+        -3631.923997916374,
+        0.0
+      ],
+      "velocity": [
+        3.2045748395479485,
+        6.289332245774287,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        -7128.052193506942,
+        -3631.923997916375,
+        0.0
+      ],
+      "velocity": [
+        3.2045748395479494,
+        -6.289332245774286,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 60.0,
+      "semi_major_axis_km": 7999.999999999998,
+      "eccentricity": 0.0,
+      "argument_of_periapsis_rad": -2.670353755551324,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": -2.670353755551324,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "transfer-medium-03": {
+    "spacecraft": {
+      "position": [
+        4.1038404098147463e-13,
+        -6702.08,
+        0.0
+      ],
+      "velocity": [
+        7.711943576064159,
+        0.9254332291276994,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        8576.983734410274,
+        2786.8309495791646,
+        -2930.247468820551
+      ],
+      "velocity": [
+        -0.9479191248533609,
+        6.509128921834695,
+        -0.3606305786170924
+      ],
+      "kind": "satellite",
+      "tolerance_km": 55.0,
+      "semi_major_axis_km": 9799.999999999998,
+      "eccentricity": 0.17999999999999997,
+      "argument_of_periapsis_rad": -1.7403429990609895,
+      "inclination_rad": 0.3141592653589791,
+      "raan_rad": 1.8849555921538759,
+      "true_anomaly_at_t0_rad": 1.5707963267948986,
+      "orbit_type": "elliptical",
+      "spin_rad_s": 0.12
+    }
+  },
+  "rescue-hard-01": {
+    "spacecraft": {
+      "position": [
+        5986.896461018753,
+        -2531.2192250062285,
+        0.0
+      ],
+      "velocity": [
+        3.049498138461221,
+        7.212741366956012,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        -5300.884098298505,
+        -9063.698349813174,
+        0.0
+      ],
+      "velocity": [
+        5.31851198034439,
+        -3.1105200653328,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 45.0,
+      "semi_major_axis_km": 10500.000000000002,
+      "eccentricity": 0.0,
+      "argument_of_periapsis_rad": -2.1,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": -2.1,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "debris-hard-02": {
+    "spacecraft": {
+      "position": [
+        5016.288307299591,
+        5164.963854476564,
+        0.0
+      ],
+      "velocity": [
+        -5.337491410279933,
+        5.183849588510363,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        -9425.776287058421,
+        -5670.515090036106,
+        0.0
+      ],
+      "velocity": [
+        3.103145433703077,
+        -5.158183018626945,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 40.0,
+      "semi_major_axis_km": 11000.000000000005,
+      "eccentricity": 2.1073424255447017e-08,
+      "argument_of_periapsis_rad": -2.6,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": 0.0,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "sync-hard-03": {
+    "spacecraft": {
+      "position": [
+        2898.862035813389,
+        -7456.31268773781,
+        0.0
+      ],
+      "velocity": [
+        6.578968075497955,
+        2.5577683752792635,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        -11237.480247489557,
+        4209.398732275438,
+        0.0
+      ],
+      "velocity": [
+        -2.021700618896943,
+        -5.397165299879038,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 35.0,
+      "semi_major_axis_km": 12000.000000000007,
+      "eccentricity": 1.4901161193847656e-08,
+      "argument_of_periapsis_rad": 2.7831853071795867,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": 0.0,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "tight-hard-04": {
+    "spacecraft": {
+      "position": [
+        3401.97091069183,
+        6684.055200460765,
+        0.0
+      ],
+      "velocity": [
+        -6.497058541309192,
+        3.3067955753974183,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        6216.099682706644,
+        -7833.269096274834,
+        0.0
+      ],
+      "velocity": [
+        4.945516934278279,
+        3.924520639870145,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 25.0,
+      "semi_major_axis_km": 10000.0,
+      "eccentricity": 1.0536712127723509e-08,
+      "argument_of_periapsis_rad": -0.9,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": 0.0,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "compound-expert-01": {
+    "spacecraft": {
+      "position": [
+        6664.452729320443,
+        -1350.9514494064163,
+        0.0
+      ],
+      "velocity": [
+        1.5210553561118734,
+        7.503601646040846,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        8374.494584153945,
+        9162.305422865633,
+        -1976.7425679743947
+      ],
+      "velocity": [
+        -3.150173275170853,
+        3.655985575110179,
+        2.339581496607458
+      ],
+      "kind": "satellite",
+      "tolerance_km": 30.0,
+      "semi_major_axis_km": 11500.000000000004,
+      "eccentricity": 0.09999999999999894,
+      "argument_of_periapsis_rad": 2.356078837292414,
+      "inclination_rad": 0.4886921905584124,
+      "raan_rad": 1.1344640137963145,
+      "true_anomaly_at_t0_rad": 2.9914580773445754,
+      "orbit_type": "elliptical",
+      "spin_rad_s": 0.12
+    }
+  },
+  "minfuel-expert-02": {
+    "spacecraft": {
+      "position": [
+        6782.889072791802,
+        2098.193467295511,
+        0.0
+      ],
+      "velocity": [
+        -2.214250006511953,
+        7.158068313384859,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        7742.884807391603,
+        7763.645538424794,
+        -3132.97385932639
+      ],
+      "velocity": [
+        -3.287490662954905,
+        4.4200760151486715,
+        1.62963305814479
+      ],
+      "kind": "satellite",
+      "tolerance_km": 20.0,
+      "semi_major_axis_km": 10799.999999999996,
+      "eccentricity": 0.07999999999999836,
+      "argument_of_periapsis_rad": 2.356224218849657,
+      "inclination_rad": 0.4188790204786389,
+      "raan_rad": 1.4835298641951802,
+      "true_anomaly_at_t0_rad": 2.7861938466383007,
+      "orbit_type": "elliptical",
+      "spin_rad_s": 0.12
+    }
+  },
+  "longarc-expert-03": {
+    "spacecraft": {
+      "position": [
+        -850.3736623504626,
+        -6544.987748986293,
+        0.0
+      ],
+      "velocity": [
+        7.70657806171953,
+        -1.0012961462837249,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        -6128.260266758743,
+        10894.697155169852,
+        0.0
+      ],
+      "velocity": [
+        -4.921741389105734,
+        -2.76847642192661,
+        0.0
+      ],
+      "kind": "satellite",
+      "tolerance_km": 28.0,
+      "semi_major_axis_km": 12500.0,
+      "eccentricity": 0.0,
+      "argument_of_periapsis_rad": 2.0831853071795865,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": 2.0831853071795865,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  },
+  "edge-expert-04": {
+    "spacecraft": {
+      "position": [
+        5777.349304367748,
+        -3952.497313765248,
+        0.0
+      ],
+      "velocity": [
+        4.26081983279541,
+        6.2280230808270485,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        -344.2089320129453,
+        11747.735813545158,
+        2844.4195053691697
+      ],
+      "velocity": [
+        -5.277584675197293,
+        -0.9666387315870586,
+        1.2453318049458852
+      ],
+      "kind": "satellite",
+      "tolerance_km": 22.0,
+      "semi_major_axis_km": 11200.000000000002,
+      "eccentricity": 0.12000000000000172,
+      "argument_of_periapsis_rad": 2.355736594345933,
+      "inclination_rad": 0.34906585039886545,
+      "raan_rad": 0.8726646259971645,
+      "true_anomaly_at_t0_rad": -2.8982826845460843,
+      "orbit_type": "elliptical",
+      "spin_rad_s": 0.12
+    }
+  },
+  "leo-classic-01": {
+    "spacecraft": {
+      "position": [
+        7000.0,
+        0.0,
+        0.0
+      ],
+      "velocity": [
+        0.0,
+        7.546,
+        0.0
+      ]
+    },
+    "target": {
+      "position": [
+        0.0,
+        10000.0,
+        0.0
+      ],
+      "velocity": null,
+      "kind": "satellite",
+      "tolerance_km": 50.0,
+      "semi_major_axis_km": 10000.0,
+      "eccentricity": 0.0,
+      "argument_of_periapsis_rad": 1.5707963267948966,
+      "inclination_rad": 0.0,
+      "raan_rad": 0.0,
+      "true_anomaly_at_t0_rad": 0.0,
+      "orbit_type": "circular",
+      "spin_rad_s": 0.12
+    }
+  }
+}

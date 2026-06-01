@@ -9,22 +9,23 @@ import {
 
 const MU = 398600;
 
-function targetElements(target) {
+export function targetElements(target) {
+  const declaredInc = target.inclination_rad ?? target.orbit_elements?.inclination_rad ?? 0;
+  const declaredRaan = target.raan_rad ?? target.orbit_elements?.raan_rad ?? 0;
+
   if (target.orbit_elements) {
     const o = target.orbit_elements;
     return {
       semi_major_axis_km: o.semi_major_axis_km,
       eccentricity: o.eccentricity,
-      inclination_rad: o.inclination_rad ?? target.inclination_rad ?? 0,
-      raan_rad: o.raan_rad ?? target.raan_rad ?? 0,
+      inclination_rad: o.inclination_rad ?? declaredInc,
+      raan_rad: o.raan_rad ?? declaredRaan,
       argument_of_periapsis_rad: o.argument_of_periapsis_rad,
       true_anomaly_at_t0_rad: o.true_anomaly_at_t0_rad,
       mean_motion_rad_s: o.mean_motion_rad_s,
     };
   }
-  if (target.velocity) {
-    return elementsFromState(target.position, target.velocity);
-  }
+
   if (target.semi_major_axis_km != null) {
     const a = target.semi_major_axis_km;
     const e = target.eccentricity ?? 0;
@@ -32,10 +33,26 @@ function targetElements(target) {
     const [x, y] = toVec3(target.position);
     const nu0 = target.true_anomaly_at_t0_rad ?? Math.atan2(y, x) - argp;
     return elementsFromElements2d(a, e, argp, nu0, {
-      inclination_rad: target.inclination_rad ?? 0,
-      raan_rad: target.raan_rad ?? 0,
+      inclination_rad: declaredInc,
+      raan_rad: declaredRaan,
     });
   }
+
+  if (target.velocity) {
+    const el = elementsFromState(target.position, target.velocity);
+    if (declaredInc > 1e-4 && el.inclination_rad < 1e-4) {
+      const a = el.semi_major_axis_km;
+      const e = el.eccentricity;
+      const argp = el.argument_of_periapsis_rad;
+      const nu0 = el.true_anomaly_at_t0_rad;
+      return elementsFromElements2d(a, e, argp, nu0, {
+        inclination_rad: declaredInc,
+        raan_rad: declaredRaan,
+      });
+    }
+    return el;
+  }
+
   return null;
 }
 

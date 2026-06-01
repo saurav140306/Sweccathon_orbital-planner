@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import { eciToScene, toVec3, vecMag } from "./kepler3d.js";
 import { chaserCoastPath, targetOrbitPath, targetPointAtTime } from "./orbital-motion.js";
+import { mergeOrbitCatalog, upliftTargetTrajectory } from "./scenario-merge.js";
 
 const EARTH_R = 6371;
 const MOON_R_KM = 1737;
@@ -119,6 +120,13 @@ export function turnToMission(turn) {
     closest_approach_time_s: parseFloat(info.closest_approach_time_s) || 0,
     earth_spin_rad_s: EARTH_SPIN_RAD_S,
   };
+
+  const catalog =
+    typeof globalThis !== "undefined" ? globalThis.__ORBIT_CATALOG : null;
+  if (catalog && scenario.id && catalog[scenario.id]) {
+    mergeOrbitCatalog(scenario, catalog[scenario.id]);
+    upliftTargetTrajectory(score, scenario);
+  }
 
   return { scenario, score, burns };
 }

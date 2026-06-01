@@ -185,6 +185,15 @@
     updateRunHud(data);
 
     try {
+      const catRes = await fetch(`data/orbit-catalog.json?ts=${Date.now()}`);
+      if (catRes.ok) {
+        globalThis.__ORBIT_CATALOG = await catRes.json();
+      }
+    } catch (err) {
+      console.warn("orbit-catalog load failed", err);
+    }
+
+    try {
       const { startDemo } = await import("./demo-main.js");
       await startDemo({ data, scenarios });
     } catch (err) {
