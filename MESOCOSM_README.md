@@ -35,7 +35,8 @@ Remove-Item Env:MESOCOSM_LOCAL -ErrorAction SilentlyContinue
 mesocosm auth login
 mesocosm env submit --name "Orbital Planner" --github-url https://github.com/saurav140306/Sweccathon_orbital-planner --solo
 mesocosm env list
-mesocosm run create --domain DOMAIN_ID --vow-version 1.0.0 --model gemini/gemini-3.1-flash-lite --episodes 8 --visibility gallery_public --solo
+# Use domain_id from the env detail API (not the id shown in env list). Do not pass --env-id.
+mesocosm run create --domain DOMAIN_ID --vow-version 1.0.0 --model gemini/gemini-3.1-flash-lite --episodes 6 --visibility gallery_public --solo
 mesocosm run export RUN_ID -o showcase/data/replay.json
 # regenerate replay.js for file:// and Pages:
 # python -c "import json; from pathlib import Path; p=json.loads(Path('showcase/data/replay.json').read_text()); Path('showcase/data/replay.js').write_text('window.REPLAY = '+json.dumps(p)+';\\n')"
