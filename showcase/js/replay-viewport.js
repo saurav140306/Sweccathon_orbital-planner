@@ -216,9 +216,47 @@ function makeChaserBody() {
   return group;
 }
 
-function makeOrbitPath(points, color, scale, tubeRadius) {
+function sampleCircularOrbit(radiusKm, samples = 91, angle0 = 0) {
+  const pts = [];
+  for (let i = 0; i < samples; i++) {
+    const theta = angle0 + (2 * Math.PI * i) / samples;
+    pts.push([radiusKm * Math.cos(theta), radiusKm * Math.sin(theta), 0]);
+  }
+  return pts;
+}
+
+/** Keplerian ring for guide orbits (closed). Open transfer paths must not use closed curves. */
+function targetOrbitRing(scenario) {
+  const tg = scenario.target;
+  const a = tg.semi_major_axis_km || Math.hypot(tg.position[0], tg.position[1]) || 10000;
+  const e = tg.eccentricity ?? 0;
+  if (e < 1e-4) {
+    return sampleCircularOrbit(a, 91, Math.atan2(tg.position[1], tg.position[0]));
+  }
+  const pts = [];
+  for (let i = 0; i <= 90; i++) {
+    const nu = (2 * Math.PI * i) / 90;
+    const r = (a * (1 - e * e)) / (1 + e * Math.cos(nu));
+    pts.push([r * Math.cos(nu), r * Math.sin(nu), 0]);
+  }
+  return pts;
+}
+
+function chaserCoastRing(scenario) {
+  const [x, y] = scenario.spacecraft.position;
+  const r = Math.max(Math.hypot(x, y), EARTH_R + 100);
+  return sampleCircularOrbit(r, 91, Math.atan2(y, x));
+}
+
+function makeOrbitPath(points, color, scale, tubeRadius, closed = false) {
   const pts = points.map((p) => toThree(p, scale));
-  if (pts.length < 3) return new THREE.Group();
+  if (pts.length < 2) return new THREE.Group();
+  if (pts.length < 3 || !closed) {
+    return new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }),
+    );
+  }
   try {
     const curve = new THREE.CatmullRomCurve3(pts, true);
     const geo = new THREE.TubeGeometry(curve, Math.max(pts.length * 2, 64), tubeRadius, 8, true);
@@ -227,9 +265,9 @@ function makeOrbitPath(points, color, scale, tubeRadius) {
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.88 }),
     );
   } catch {
-    const closed = [...pts, pts[0]];
+    const loop = [...pts, pts[0]];
     return new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(closed),
+      new THREE.BufferGeometry().setFromPoints(loop),
       new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }),
     );
   }
@@ -394,8 +432,8 @@ export class ReplayViewport3D {
 
     const kind = this.scenario.target.kind || "satellite";
     const targetColor = kind === "moon" ? 0xc8c8be : 0x5dcaa5;
-    scene.add(makeOrbitPath(tgtPts, targetColor, scale, tubeR * 0.85));
-    scene.add(makeOrbitPath(trajPts.slice(0, 3), 0xf5f0e6, scale, tubeR * 0.6));
+    scene.add(makeOrbitPath(targetOrbitRing(this.scenario), targetColor, scale, tubeR * 0.85, true));
+    scene.add(makeOrbitPath(chaserCoastRing(this.scenario), 0xf5f0e6, scale, tubeR * 0.55, true));
 
     this.targetTrailLine = new THREE.Line(
       new THREE.BufferGeometry(),
