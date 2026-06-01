@@ -120,6 +120,9 @@ class OrbitalPlannerEnv(BaseEnv):
         scenario_id = params.get("scenario_id")
         if scenario_id and scenario_id in SCENARIOS:
             self._scenario = SCENARIOS[str(scenario_id)]
+        elif seed is not None:
+            # Deterministic: one of all 14 scenarios per episode seed (0..13 → full catalog).
+            self._scenario = ALL_SCENARIOS[int(seed) % len(ALL_SCENARIOS)]
         else:
             self._scenario = _scenario_for_seed(self._rng)
         self._step_count = 0

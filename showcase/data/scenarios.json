@@ -1,0 +1,154 @@
+{
+  "tiers": {
+    "easy": [
+      {
+        "id": "raise-easy-01",
+        "name": "Gentle orbit raise",
+        "tier": "easy"
+      },
+      {
+        "id": "station-easy-02",
+        "name": "Station-keeping hop",
+        "tier": "easy"
+      }
+    ],
+    "medium": [
+      {
+        "id": "intercept-01",
+        "name": "Intercept derelict satellite",
+        "tier": "medium"
+      },
+      {
+        "id": "phase-medium-02",
+        "name": "Phasing rendezvous",
+        "tier": "medium"
+      },
+      {
+        "id": "transfer-medium-03",
+        "name": "Elliptic transfer slot",
+        "tier": "medium"
+      }
+    ],
+    "hard": [
+      {
+        "id": "rescue-hard-01",
+        "name": "Rescue capsule intercept",
+        "tier": "hard"
+      },
+      {
+        "id": "debris-hard-02",
+        "name": "Debris avoidance slot",
+        "tier": "hard"
+      },
+      {
+        "id": "sync-hard-03",
+        "name": "GEO slot sync (scaled)",
+        "tier": "hard"
+      },
+      {
+        "id": "tight-hard-04",
+        "name": "Tight tolerance flyby",
+        "tier": "hard"
+      },
+      {
+        "id": "leo-classic-01",
+        "name": "Classic LEO [7000,0] \u2192 [0,10000]",
+        "tier": "hard"
+      }
+    ],
+    "expert": [
+      {
+        "id": "compound-expert-01",
+        "name": "Compound plane change",
+        "tier": "expert"
+      },
+      {
+        "id": "minfuel-expert-02",
+        "name": "Minimum-fuel intercept",
+        "tier": "expert"
+      },
+      {
+        "id": "longarc-expert-03",
+        "name": "Long-arc reposition",
+        "tier": "expert"
+      },
+      {
+        "id": "edge-expert-04",
+        "name": "Edge-of-budget sprint",
+        "tier": "expert"
+      }
+    ]
+  },
+  "all": [
+    {
+      "id": "raise-easy-01",
+      "name": "Gentle orbit raise",
+      "tier": "easy"
+    },
+    {
+      "id": "station-easy-02",
+      "name": "Station-keeping hop",
+      "tier": "easy"
+    },
+    {
+      "id": "intercept-01",
+      "name": "Intercept derelict satellite",
+      "tier": "medium"
+    },
+    {
+      "id": "phase-medium-02",
+      "name": "Phasing rendezvous",
+      "tier": "medium"
+    },
+    {
+      "id": "transfer-medium-03",
+      "name": "Elliptic transfer slot",
+      "tier": "medium"
+    },
+    {
+      "id": "rescue-hard-01",
+      "name": "Rescue capsule intercept",
+      "tier": "hard"
+    },
+    {
+      "id": "debris-hard-02",
+      "name": "Debris avoidance slot",
+      "tier": "hard"
+    },
+    {
+      "id": "sync-hard-03",
+      "name": "GEO slot sync (scaled)",
+      "tier": "hard"
+    },
+    {
+      "id": "tight-hard-04",
+      "name": "Tight tolerance flyby",
+      "tier": "hard"
+    },
+    {
+      "id": "compound-expert-01",
+      "name": "Compound plane change",
+      "tier": "expert"
+    },
+    {
+      "id": "minfuel-expert-02",
+      "name": "Minimum-fuel intercept",
+      "tier": "expert"
+    },
+    {
+      "id": "longarc-expert-03",
+      "name": "Long-arc reposition",
+      "tier": "expert"
+    },
+    {
+      "id": "edge-expert-04",
+      "name": "Edge-of-budget sprint",
+      "tier": "expert"
+    },
+    {
+      "id": "leo-classic-01",
+      "name": "Classic LEO [7000,0] \u2192 [0,10000]",
+      "tier": "hard"
+    }
+  ]
+}
