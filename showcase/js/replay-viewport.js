@@ -1,7 +1,7 @@
 /**
  * 3D orbital viewport for Mesocosm replay (vanilla port of OrbitalViewport3D).
  */
-import * as THREE from "https://unpkg.com/three@0.170.0/build/three.module.js";
+import * as THREE from "three";
 
 const EARTH_R = 6371;
 const MOON_R_KM = 1737;
