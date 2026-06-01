@@ -188,6 +188,15 @@
       return out;
     }
 
+    function parseTraj(val) {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      if (typeof val === "string") {
+        try { return JSON.parse(val); } catch { return []; }
+      }
+      return [];
+    }
+
     function turns() { return (DATA.replay && DATA.replay[epId]) || []; }
 
     function setEpisode(id) {
@@ -228,8 +237,8 @@
       const w = canvas.width, h = canvas.height;
       ctx.fillStyle = "#0c1510";
       ctx.fillRect(0, 0, w, h);
-      const chaser = JSON.parse(info.chaser_traj_json || "[]");
-      const target = JSON.parse(info.target_traj_json || "[]");
+      const chaser = parseTraj(info.chaser_traj_json);
+      const target = parseTraj(info.target_traj_json);
       const all = [...chaser, ...target];
       const maxR = Math.max(12000, ...all.map(p => Math.hypot(p.x, p.y)), EARTH_R * 2);
       const cx = w / 2, cy = h / 2, scale = (Math.min(w, h) * 0.42) / maxR;
